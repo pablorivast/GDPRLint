@@ -60,6 +60,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def cmd_scan(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
+    import os
+    import warnings
+
+    # Mute model download / progress noise for interactive and hook use
+    os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+    os.environ.setdefault("TQDM_DISABLE", "1")
+    os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
+
     try:
         cfg = load_config(Path.cwd())
     except ConfigError as exc:
@@ -67,7 +75,9 @@ def cmd_scan(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
         return EXIT_ERROR
 
     try:
-        decision = scan(Path.cwd(), config=cfg)
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message=r".*invalid temperatures.*")
+            decision = scan(Path.cwd(), config=cfg)
     except GitError as exc:
         print(f"laya-guard: git error: {exc}", file=err)
         return EXIT_ERROR

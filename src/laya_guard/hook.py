@@ -15,6 +15,10 @@ _PY = sys.executable or "python3"
 HOOK_BODY = f"""{BEGIN_MARK}
 # Laya Guard pre-commit hook — technical privacy/security guardrail.
 # Does not certify legal or GDPR compliance.
+# Mute Hugging Face / tqdm / transformers download noise during scan.
+export HF_HUB_DISABLE_PROGRESS_BARS=1
+export TQDM_DISABLE=1
+export TRANSFORMERS_VERBOSITY=error
 LAYA_GUARD_BIN="$(command -v laya-guard 2>/dev/null || true)"
 if [ -n "$LAYA_GUARD_BIN" ]; then
     "$LAYA_GUARD_BIN" scan

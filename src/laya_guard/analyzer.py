@@ -139,20 +139,52 @@ class LayaAnalyzer:
                 # Force CPU when configured (hooks must not OOM competing GPU procs)
                 if config.laya.device in {"cpu", "cuda"}:
                     kwargs["device"] = config.laya.device
-                try:
-                    self._router = Router(**kwargs)
-                except TypeError:
-                    # Older laya without device kwarg
-                    self._router = Router(**{k: v for k, v in kwargs.items() if k != "device"})
-                    if config.laya.device == "cpu":
-                        import os as _os
-
-                        _os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
+                self._router = self._load_router_silently(Router, kwargs, config)
             except Exception as exc:  # noqa: BLE001 — degrade safely
                 self._load_error = f"{type(exc).__name__}: {exc}"
                 self._router = None
                 return
         self.available = True
+
+    @staticmethod
+    def _load_router_silently(router_cls: Any, kwargs: dict[str, Any], config: Config) -> Any:
+        """Instantiate Router while muting HF progress bars and laya RuntimeWarnings."""
+        import os
+        import warnings
+
+        env = {
+            "HF_HUB_DISABLE_PROGRESS_BARS": "1",
+            "TQDM_DISABLE": "1",
+            "TRANSFORMERS_VERBOSITY": "error",
+        }
+        prev = {k: os.environ.get(k) for k in env}
+        try:
+            for k, v in env.items():
+                os.environ[k] = v
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore",
+                    message=r".*invalid temperatures.*",
+                    module=r"laya(\.|$)",
+                )
+                warnings.filterwarnings(
+                    "ignore",
+                    message=r".*invalid temperatures.*",
+                )
+                try:
+                    return router_cls(**kwargs)
+                except TypeError:
+                    # Older laya without device kwarg
+                    slim = {k: v for k, v in kwargs.items() if k != "device"}
+                    if config.laya.device == "cpu":
+                        os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
+                    return router_cls(**slim)
+        finally:
+            for k, old in prev.items():
+                if old is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = old
 
     @property
     def load_error(self) -> str | None:

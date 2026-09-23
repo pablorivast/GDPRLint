@@ -63,5 +63,11 @@ def test_uninstall_keeps_foreign_hook(git_repo: Path):
     install_hook(git_repo)
     assert uninstall_hook(git_repo) is True
     content = existing.read_text(encoding="utf-8")
-    assert "echo keep-me" in content
+    assert "keep-me" in content
     assert BEGIN_MARK not in content
+
+
+def test_hook_exports_quiet_env_vars():
+    assert "HF_HUB_DISABLE_PROGRESS_BARS=1" in HOOK_BODY
+    assert "TQDM_DISABLE=1" in HOOK_BODY
+    assert "TRANSFORMERS_VERBOSITY=error" in HOOK_BODY

@@ -46,6 +46,15 @@ GDPRLint (pre-commit)
 ALLOW / BLOCK
 ```
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/assets/screenshots/scan-output00.png" alt="GDPRLint scan output" width="800"/>
+</p>
+<p align="center">
+  <img src="docs/assets/screenshots/scan-output01.png" alt="GDPRLint blocked commit" width="800"/>
+</p>
+
 ## Why it exists
 
 - **Agent-agnostic:** the only integration point is **Git**. Any tool that changes a repo can use it.

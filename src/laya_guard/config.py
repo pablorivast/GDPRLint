@@ -14,6 +14,19 @@ VALID_ACTIONS = frozenset({"block", "warn", "off"})
 VALID_MODES = frozenset({"block", "off"})
 VALID_CONFIDENCE = frozenset({"possible", "likely", "high"})
 
+# Lockfiles / generated bundles — high FP surface, low value for PII/secret scan.
+DEFAULT_EXCLUDE: list[str] = [
+    "**/package-lock.json",
+    "**/yarn.lock",
+    "**/pnpm-lock.yaml",
+    "**/poetry.lock",
+    "**/uv.lock",
+    "**/Cargo.lock",
+    "**/composer.lock",
+    "**/*.min.js",
+    "**/*.min.css",
+]
+
 
 class ConfigError(Exception):
     """Raised when configuration is invalid."""
@@ -53,22 +66,36 @@ class Config:
     min_block_confidence: str = "high"
     rules: dict[str, str] = field(default_factory=dict)
     exclude: list[str] = field(default_factory=list)
+    exclude_defaults: bool = True
     exceptions: list[ExceptionRule] = field(default_factory=list)
     laya: LayaConfig = field(default_factory=LayaConfig)
     gdpr_context: str = "informational"
     path: Path | None = None
 
-    # Defaults when no config file / no matching rule
+    # Defaults when no config file / no matching rule.
+    # Exact SECRET.HARDCODED_WEAK_PW must win over SECRET.* glob (dict order
+    # is not used for builtins — action_for_rule prefers exact match first).
     DEFAULT_RULE_ACTIONS: ClassVar[dict[str, str]] = {
         "SECRET.*": "block",
         "PII.*": "warn",
         "SECURITY.*": "warn",
     }
 
+    # Exact overrides before SECRET.* / SECURITY.* globs.
+    # Critical credential-handling rules block; weak/dev defaults warn.
+    DEFAULT_EXACT_ACTIONS: ClassVar[dict[str, str]] = {
+        "SECRET.HARDCODED_WEAK_PW": "warn",
+        "SECRET.CREDENTIALS_IN_URL": "block",
+        "SECURITY.LOG_CREDENTIAL": "block",
+        "SECURITY.LOCALSTORAGE_SECRET": "block",
+    }
+
     def action_for_rule(self, rule: str) -> str:
         # Exact match first, then globs (longest pattern wins for specificity)
         if rule in self.rules:
             return self.rules[rule]
+        if rule in self.DEFAULT_EXACT_ACTIONS:
+            return self.DEFAULT_EXACT_ACTIONS[rule]
         best_pattern = ""
         best_action = ""
         for pattern, action in self.rules.items():
@@ -84,13 +111,34 @@ class Config:
                 return action
         return "warn"
 
+    def _match_exclude(self, normalized: str, pattern: str) -> bool:
+        # fnmatch does not treat ** as recursive; translate common globs.
+        if pattern.startswith("**/"):
+            suffix = pattern[3:]
+            if fnmatch.fnmatch(normalized, suffix) or fnmatch.fnmatch(
+                normalized.split("/")[-1], suffix
+            ):
+                return True
+            # match any path segment suffix: a/**/b
+            if "/" in normalized:
+                parts = normalized.split("/")
+                for i in range(len(parts)):
+                    if fnmatch.fnmatch("/".join(parts[i:]), suffix):
+                        return True
+        if fnmatch.fnmatch(normalized, pattern):
+            return True
+        # Also match basename-style patterns against full path segments
+        if "/" not in pattern and fnmatch.fnmatch(normalized.split("/")[-1], pattern):
+            return True
+        return False
+
     def is_excluded(self, path: str) -> bool:
         normalized = path.replace("\\", "/")
-        for pattern in self.exclude:
-            if fnmatch.fnmatch(normalized, pattern):
-                return True
-            # Also match basename-style patterns against full path segments
-            if "/" not in pattern and fnmatch.fnmatch(normalized.split("/")[-1], pattern):
+        patterns = list(self.exclude)
+        if self.exclude_defaults:
+            patterns = DEFAULT_EXCLUDE + patterns
+        for pattern in patterns:
+            if self._match_exclude(normalized, pattern):
                 return True
         return False
 
@@ -207,6 +255,13 @@ def load_config(start_dir: Path | None = None) -> Config:
     if not isinstance(exclude, list) or not all(isinstance(x, str) for x in exclude):
         raise ConfigError("'exclude' must be a list of strings")
     cfg.exclude = list(exclude)
+
+    if "exclude_defaults" in raw:
+        if not isinstance(raw["exclude_defaults"], bool):
+            raise ConfigError("'exclude_defaults' must be a boolean")
+        cfg.exclude_defaults = raw["exclude_defaults"]
+    else:
+        cfg.exclude_defaults = True
 
     cfg.exceptions = _parse_exceptions(raw.get("exceptions", []))
     cfg.laya = _parse_laya(raw.get("laya"))

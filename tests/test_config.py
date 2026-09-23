@@ -108,3 +108,41 @@ def test_mode_off_never_blocks_via_config():
     cfg = default_config()
     cfg.mode = "off"
     assert cfg.mode == "off"
+
+
+def test_default_excludes_lockfiles_and_min_js():
+    cfg = default_config()
+    assert cfg.is_excluded("package-lock.json")
+    assert cfg.is_excluded("frontend/package-lock.json")
+    assert cfg.is_excluded("yarn.lock")
+    assert cfg.is_excluded("pnpm-lock.yaml")
+    assert cfg.is_excluded("poetry.lock")
+    assert cfg.is_excluded("Cargo.lock")
+    assert cfg.is_excluded("vendor/app.min.js")
+    assert cfg.is_excluded("app.min.css")
+    assert not cfg.is_excluded("src/app.ts")
+    assert not cfg.is_excluded("docker-compose.yml")
+
+
+def test_exclude_defaults_false_disables_builtins(tmp_path: Path):
+    (tmp_path / ".laya-guard.json").write_text(
+        json.dumps({"exclude_defaults": False}), encoding="utf-8"
+    )
+    cfg = load_config(tmp_path)
+    assert cfg.exclude_defaults is False
+    assert not cfg.is_excluded("package-lock.json")
+
+
+def test_weak_pw_rule_warns_by_default():
+    cfg = default_config()
+    assert cfg.action_for_rule("SECRET.HARDCODED_WEAK_PW") == "warn"
+    assert cfg.action_for_rule("SECRET.AWS_ACCESS_KEY") == "block"
+
+
+def test_credential_rules_block_by_default():
+    cfg = default_config()
+    assert cfg.action_for_rule("SECRET.CREDENTIALS_IN_URL") == "block"
+    assert cfg.action_for_rule("SECURITY.LOG_CREDENTIAL") == "block"
+    assert cfg.action_for_rule("SECURITY.LOCALSTORAGE_SECRET") == "block"
+    # other security still warns
+    assert cfg.action_for_rule("SECURITY.CORS_WILDCARD") == "warn"

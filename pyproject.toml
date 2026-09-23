@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "laya-guard"
+version = "0.1.0"
+description = "Technical privacy and security guardrail for coding agents via Git pre-commit hooks"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.10"
+authors = [{ name = "Laya Guard contributors" }]
+keywords = ["security", "privacy", "gdpr", "secrets", "pii", "git", "pre-commit", "ai-agents"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = [
+    "laya>=0.3.7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+]
+
+[project.scripts]
+laya-guard = "laya_guard.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/laya-guard/laya-guard"
+Documentation = "https://github.com/laya-guard/laya-guard#readme"
+Issues = "https://github.com/laya-guard/laya-guard/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+laya_guard = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+markers = [
+    "laya_e2e: tests that load real Laya weights (slow, needs network first time)",
+]
+
+[tool.coverage.run]
+source = ["laya_guard"]
+branch = true

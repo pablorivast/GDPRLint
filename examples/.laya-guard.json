@@ -1,0 +1,33 @@
+{
+  "mode": "block",
+  "min_block_confidence": "high",
+  "rules": {
+    "SECRET.*": "block",
+    "PII.*": "warn",
+    "PII.SPECIAL_CATEGORY": "block",
+    "SECURITY.*": "warn"
+  },
+  "exclude": [
+    "fixtures/sanitized/**",
+    "**/*.min.js",
+    "**/*.map"
+  ],
+  "exceptions": [
+    {
+      "rule": "PII.EMAIL",
+      "file": "docs/examples.md",
+      "line": 12
+    }
+  ],
+  "laya": {
+    "enabled": true,
+    "device": "cpu",
+    "min_confidence": 0.7,
+    "suppress_fp_below": 0.85,
+    "preload": false,
+    "show_gdpr_context": true,
+    "flag_special_category": true,
+    "flag_dpia_signal": true
+  },
+  "gdpr_context": "informational"
+}

@@ -32,13 +32,13 @@ ALLOW / BLOCK
 - **Fail safely:** high-confidence secrets block by default; false positives are configurable.
 - **Open source:** Apache-2.0, auditable, extensible rules.
 
-## What it detects (v0.1)
+## What it detects (v0.2)
 
 | Category | Examples | Default action |
 |---|---|---|
-| **Secrets** | AWS keys, GitHub/OpenAI/Google/Slack/Stripe tokens, private keys, JWT, connection strings, hardcoded passwords/API keys | **block** (high confidence) |
-| **PII** | email, phone, IBAN (ES + international), Spanish DNI/NIE, credit cards (Luhn), SSN/NHS/CPF with context, public IPs, MAC, GPS, DOB, license plates, URL/query PII, logging PII, special-category signals | **warn** |
-| **Security** | `eval`/`exec`, `os.system`, `shell=True`, `child_process.exec`, `dangerouslySetInnerHTML`, SQL concat, pickle/unsafe YAML, TLS verify off, CORS `*`, weak RNG for secrets | **warn** |
+| **Secrets** | AWS keys, GitHub/OpenAI/Google/Slack/Stripe tokens, private keys, JWT, connection strings, hardcoded passwords/API keys, **credentials in URL query**, weak compose/env passwords | **block** (high confidence); `SECRET.HARDCODED_WEAK_PW` → **warn** |
+| **PII** | email (placeholder domains ignored), phone (context required; lockfiles skipped), IBAN (ES + international), Spanish DNI/NIE, credit cards (Luhn), SSN/NHS/CPF with context, public IPs, MAC, GPS, DOB, license plates, URL/query PII (incl. password/username params), logging PII (real interpolation only), special-category signals | **warn** |
+| **Security** | `eval`/`exec`, `os.system`, `shell=True`, `child_process.exec`, `dangerouslySetInnerHTML`, SQL concat, pickle/unsafe YAML, TLS verify off, CORS `*` (`cors()` / `origin: "*"`), weak RNG for secrets, **credential logging**, **password/token in localStorage** | **warn**; `SECURITY.LOG_CREDENTIAL` + `SECURITY.LOCALSTORAGE_SECRET` → **block** |
 
 PII confidence tiers: `possible` · `likely` · `high`. Names are **not** detected (too many false positives).
 
@@ -104,11 +104,13 @@ Directories like `node_modules/` are only touched if you **explicitly staged** f
   "min_block_confidence": "high",
   "rules": {
     "SECRET.*": "block",
+    "SECRET.HARDCODED_WEAK_PW": "warn",
     "PII.*": "warn",
     "PII.SPECIAL_CATEGORY": "block",
     "SECURITY.*": "warn"
   },
   "exclude": ["fixtures/sanitized/**"],
+  "exclude_defaults": true,
   "exceptions": [
     { "rule": "PII.EMAIL", "file": "docs/examples.md", "line": 12 }
   ],
@@ -124,9 +126,14 @@ Directories like `node_modules/` are only touched if you **explicitly staged** f
 
 - **rules:** glob → `block` | `warn` | `off`  
 - **exceptions:** drop a specific finding (`rule` + `file` [+ optional `line`])  
-- **exclude:** path globs  
+- **exclude:** path globs (added to built-in defaults)  
+- **exclude_defaults:** `false` disables built-in lockfile/min.js excludes  
 - **laya.enabled:** `false` → rules-only (no model)  
 - **gdpr_context:** `off` → hide article references  
+
+Built-in excludes (v0.1.1+): `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `poetry.lock`, `uv.lock`, `Cargo.lock`, `composer.lock`, `*.min.js`, `*.min.css`.
+
+Blocking credential rules (v0.2.0): `SECRET.CREDENTIALS_IN_URL`, `SECURITY.LOG_CREDENTIAL`, `SECURITY.LOCALSTORAGE_SECRET`.
 
 See [`examples/.laya-guard.json`](examples/.laya-guard.json).
 

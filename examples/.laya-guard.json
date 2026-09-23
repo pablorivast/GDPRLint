@@ -3,15 +3,20 @@
   "min_block_confidence": "high",
   "rules": {
     "SECRET.*": "block",
+    "SECRET.HARDCODED_WEAK_PW": "warn",
+    "SECRET.CREDENTIALS_IN_URL": "block",
     "PII.*": "warn",
     "PII.SPECIAL_CATEGORY": "block",
-    "SECURITY.*": "warn"
+    "SECURITY.*": "warn",
+    "SECURITY.LOG_CREDENTIAL": "block",
+    "SECURITY.LOCALSTORAGE_SECRET": "block"
   },
   "exclude": [
     "fixtures/sanitized/**",
     "**/*.min.js",
     "**/*.map"
   ],
+  "exclude_defaults": true,
   "exceptions": [
     {
       "rule": "PII.EMAIL",

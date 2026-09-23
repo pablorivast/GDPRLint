@@ -104,7 +104,7 @@ def render(decision: CommitDecision, out: TextIO) -> None:
         render_blocked(decision, out)
         return
 
-    warns = [
+    visible = [
         f
         for f in decision.findings
         if f.laya_decision != Decision.SUPPRESS_FP.value
@@ -115,36 +115,37 @@ def render(decision: CommitDecision, out: TextIO) -> None:
     print(file=out)
     print(f"✓ {decision.files_scanned} files scanned", file=out)
 
-    secrets = [f for f in decision.findings if f.category == "secret"]
+    secrets = [f for f in visible if f.category == "secret"]
     pii_high = [
         f
-        for f in decision.findings
+        for f in visible
         if f.category == "pii" and f.confidence == "high"
     ]
-    security = [f for f in decision.findings if f.category == "security"]
+    security = [f for f in visible if f.category == "security"]
+    # Everything visible that is not already counted above
+    counted_ids = {id(f) for f in (*secrets, *pii_high, *security)}
+    additional = [f for f in visible if id(f) not in counted_ids]
+
     print(f"✓ {len(secrets)} secrets", file=out)
     print(f"✓ {len(pii_high)} high-confidence PII findings", file=out)
+    if additional:
+        print(f"✓ {len(additional)} additional warnings", file=out)
     print(f"✓ {len(security)} security findings", file=out)
 
-    review = [
-        r
-        for r in decision.reasons
-        if r in {"FLAG_PRIVACY_REVIEW", "FLAG_BREACH_CONTEXT"}
-    ]
-    if review:
-        print(f"✓ {len(review)} privacy review flags", file=out)
+    if "FLAG_PRIVACY_REVIEW" in decision.reasons or "FLAG_BREACH_CONTEXT" in decision.reasons:
+        print("✓ privacy review flags", file=out)
 
     print(file=out)
     if not decision.laya_available:
         print("⚠ Laya unavailable — rules-only mode", file=out)
         print(file=out)
 
-    if warns:
+    if visible:
         print("Warnings (non-blocking):", file=out)
-        for f in warns[:15]:
+        for f in visible[:15]:
             print(f"  • {f.rule} {f.file}:{f.line} — {f.message}", file=out)
-        if len(warns) > 15:
-            print(f"  … and {len(warns) - 15} more", file=out)
+        if len(visible) > 15:
+            print(f"  … and {len(visible) - 15} more", file=out)
         print(file=out)
 
     if decision.privacy_notes:

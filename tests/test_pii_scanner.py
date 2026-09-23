@@ -16,11 +16,25 @@ def by_rule(findings, rule):
 
 
 def test_email_positive():
-    fs = scan('contact = "maria.garcia@example.com"')
+    fs = scan('contact = "maria.garcia@acme-corp.es"')
     hits = by_rule(fs, "PII.EMAIL")
     assert hits
     assert hits[0].confidence == "high"
-    assert "maria.garcia@example.com" not in (hits[0].evidence or "")
+    assert "maria.garcia@acme-corp.es" not in (hits[0].evidence or "")
+
+
+def test_email_placeholder_example_domain_ignored():
+    fs = scan('placeholder = "tucorreo@ejemplo.com"')
+    assert "PII.EMAIL" not in rules(fs)
+    fs2 = scan('x = "user@example.com"')
+    assert "PII.EMAIL" not in rules(fs2)
+
+
+def test_email_in_comment_downranked_to_possible():
+    fs = scan("// FAILURE_EMAIL = 'pabloruizrivas21@gmail.com'")
+    hits = by_rule(fs, "PII.EMAIL")
+    assert hits
+    assert hits[0].confidence == "possible"
 
 
 def test_phone_es_with_context_likely():
@@ -125,3 +139,30 @@ def test_url_with_email_param():
 def test_log_pii_pattern():
     fs = scan('logger.info("user email " + email + " password " + password)')
     assert "PII.LOG_PII" in rules(fs)
+
+
+def test_log_pii_interpolation_template():
+    fs = scan("console.log(`login ok ${email}`)")
+    assert "PII.LOG_PII" in rules(fs)
+
+
+def test_log_pii_false_positive_api_login():
+    fs = scan("const user = await api.login(email, password);")
+    assert "PII.LOG_PII" not in rules(fs)
+
+
+def test_log_pii_false_positive_warn_missing_secret():
+    fs = scan('console.warn("GOOGLE_CLIENT_ID/SECRET not found in .env");')
+    assert "PII.LOG_PII" not in rules(fs)
+
+
+def test_phone_lockfile_version_skipped():
+    fs = scan('"caniuse-lite": "^1.0.30001754"', file="package-lock.json")
+    assert "PII.PHONE" not in rules(fs)
+    fs2 = scan('"version": "1.0.30001757"', file="package-lock.json")
+    assert "PII.PHONE" not in rules(fs2)
+
+
+def test_phone_without_context_not_flagged():
+    fs = scan("order_ref = 300017574")
+    assert "PII.PHONE" not in rules(fs)

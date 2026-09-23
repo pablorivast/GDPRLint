@@ -116,12 +116,71 @@ _SPECIAL_IDS = re.compile(
 )
 
 LOG_PII = re.compile(
-    r"(?i)\b(?:log|logger|console\.(?:log|info|error|warn)|print|printf|System\.out)"
-    r".*\b(?:password|email|phone|ssn|iban|dni|token|secret)\b"
+    r"(?i)\b(?:console\.(?:log|info|error|warn)|logger\.(?:log|info|error|warn|debug)"
+    r"|log(?:ger)?\s*\(|print(?:f)?\s*\(|System\.out)"
+    r".*?\b(?:password|email|phone|ssn|iban|dni|token|secret)\b"
+)
+
+# Actual value interpolation / concatenation of a sensitive identifier into a log
+LOG_PII_INTERPOLATION = re.compile(
+    r"(?i)(?:"
+    r"\$\{[^}]*\b(?:password|passwd|email|phone|ssn|iban|dni|token|secret)\b[^}]*\}"
+    r"|\b(?:password|passwd|email|phone|ssn|iban|dni|token|secret)\b\s*\+"
+    r"|\+\s*\b(?:password|passwd|email|phone|ssn|iban|dni|token|secret)\b"
+    r"|(?:password|passwd|email|phone|ssn|iban|dni|token|secret)\s*,"
+    r"|,\s*(?:password|passwd|email|phone|ssn|iban|dni|token|secret)\b"
+    r"|\b(?:password|passwd|email|phone|ssn|iban|dni|token|secret)\s*[:=]"
+    r")"
 )
 
 URL_WITH_PII = re.compile(
-    r"(?i)[?&](?:email|e_mail|phone|tel|ssn|dni|iban)=([^\s&\"']+)"
+    r"(?i)[?&](?:email|e_mail|phone|tel|ssn|dni|iban|password|passwd|pwd"
+    r"|username|user|token|access_token)=([^\s&\"']+)"
+)
+
+# Credential-only URL params — also covered by SECRET.CREDENTIALS_IN_URL (block)
+
+# Placeholder / non-personal example addresses
+_EMAIL_PLACEHOLDER_DOMAINS = frozenset(
+    {
+        "example.com",
+        "example.org",
+        "example.net",
+        "ejemplo.com",
+        "ejemplo.org",
+        "test.com",
+        "test.local",
+        "domain.com",
+        "email.com",
+        "sample.com",
+        "localhost",
+    }
+)
+_EMAIL_PLACEHOLDER_LOCALS = frozenset(
+    {
+        "user",
+        "username",
+        "name",
+        "you",
+        "yourname",
+        "tucorreo",
+        "tu_correo",
+        "correo",
+        "mail",
+        "example",
+        "ejemplo",
+        "admin",
+        "test",
+        "demo",
+        "foo",
+        "bar",
+        "noreply",
+        "no-reply",
+        "donotreply",
+        "jenkins",
+        "ci",
+        "github",
+    }
 )
 
 PRIVATE_IP_PREFIXES = (
@@ -131,6 +190,33 @@ PRIVATE_IP_PREFIXES = (
     "0.0.0.0",
     "255.255.",
 )
+
+
+def _is_placeholder_email(email: str) -> bool:
+    low = email.strip().lower()
+    if "@" not in low:
+        return True
+    local, _, domain = low.partition("@")
+    if domain in _EMAIL_PLACEHOLDER_DOMAINS:
+        return True
+    if local in _EMAIL_PLACEHOLDER_LOCALS:
+        return True
+    if local.startswith("tucorreo") or local.startswith("your"):
+        return True
+    if "noreply" in domain or "no-reply" in domain:
+        return True
+    if domain.endswith(".example") or domain.endswith(".test") or domain.endswith(".invalid"):
+        return True
+    return False
+
+
+def _is_comment_line(text: str) -> bool:
+    stripped = text.lstrip()
+    if stripped.startswith("#") or stripped.startswith("//") or stripped.startswith("--"):
+        return True
+    if stripped.startswith("/*") or stripped.startswith("*"):
+        return True
+    return False
 
 
 def _luhn_ok(num: str) -> bool:
@@ -164,9 +250,13 @@ class PIIScanner(Scanner):
         if not text or not text.strip():
             return []
         findings: list[Finding] = []
+        is_comment = _is_comment_line(text)
 
         # Email
         for m in EMAIL.finditer(text):
+            if _is_placeholder_email(m.group(0)):
+                continue
+            conf = Confidence.POSSIBLE.value if is_comment else Confidence.HIGH.value
             findings.append(
                 _pii(
                     "PII.EMAIL",
@@ -174,8 +264,8 @@ class PIIScanner(Scanner):
                     line_no,
                     "Potential email address detected.",
                     "Avoid committing real personal emails; use fixtures or omit.",
-                    confidence=Confidence.HIGH.value,
-                    severity=Severity.MEDIUM.value,
+                    confidence=conf,
+                    severity=Severity.MEDIUM.value if conf == Confidence.HIGH.value else Severity.LOW.value,
                     evidence=redact_email(m.group(0)),
                 )
             )
@@ -363,9 +453,30 @@ class PIIScanner(Scanner):
                 )
             )
 
-        # Phone — likely with context, possible without; skip if part of IP/card
+        # Phone — require phone context, leading +, or ES mobile shape.
+        # Skip lockfiles, integrity hashes, and version-like digit runs.
+        lower_file = file.lower()
+        skip_phone_file = any(
+            tok in lower_file
+            for tok in (
+                "lock",
+                "package-lock",
+                "yarn.lock",
+                "pnpm-lock",
+                "poetry.lock",
+                "cargo.lock",
+            )
+        ) or lower_file.endswith(".lock")
         for m in PHONE.finditer(text):
+            if skip_phone_file:
+                continue
             raw = m.group(0)
+            if "sha" in raw.lower() and "integrity" in text.lower():
+                continue
+            if re.search(r"(?i)\bintegrity\b", text) and "sha" in text.lower():
+                # npm integrity lines
+                if "sha512" in text.lower() or "sha1" in text.lower():
+                    continue
             digits = re.sub(r"\D", "", raw)
             if len(digits) < 9 or len(digits) > 15:
                 continue
@@ -375,18 +486,22 @@ class PIIScanner(Scanner):
             if any(ch == "." for ch in raw) and raw.count(".") >= 3:
                 continue
             near = _context_near(text, m.start())
-            if _PHONE_CONTEXT.search(near) or raw.strip().startswith("+"):
+            has_context = bool(_PHONE_CONTEXT.search(near))
+            starts_plus = raw.strip().startswith("+")
+            is_es_mobile = bool(
+                re.fullmatch(r"(?:34)?[67]\d{2}[- ]?\d{3}[- ]?\d{3}", digits)
+                or (len(digits) == 9 and digits[0] in "67")
+            )
+            if not (has_context or starts_plus or is_es_mobile):
+                continue
+            if has_context or starts_plus:
                 conf = Confidence.LIKELY.value
             else:
-                # ES mobile without context
-                if re.fullmatch(r"(?:34)?[67]\d{2}[- ]?\d{3}[- ]?\d{3}", digits) or (
-                    len(digits) == 9 and digits[0] in "67"
-                ):
-                    conf = Confidence.POSSIBLE.value
-                else:
-                    conf = Confidence.POSSIBLE.value
-            # Avoid flagging pure years / short versions
+                conf = Confidence.POSSIBLE.value
+            # Avoid flagging pure years / short versions / npm ranges
             if len(digits) == 9 and digits[:2] in {"19", "20"} and digits[2:].isdigit():
+                continue
+            if re.fullmatch(r"\d{1,3}(?:\.\d+){1,4}", raw.strip()):
                 continue
             findings.append(
                 _pii(
@@ -532,8 +647,9 @@ class PIIScanner(Scanner):
                 )
             )
 
-        # Logging PII patterns
-        for m in LOG_PII.finditer(text):
+        # Logging PII — only when a real log call interpolates/concatenates a
+        # sensitive identifier (not bare keywords in api.login(...), warnings…)
+        if LOG_PII.search(text) and LOG_PII_INTERPOLATION.search(text):
             findings.append(
                 _pii(
                     "PII.LOG_PII",
@@ -543,7 +659,7 @@ class PIIScanner(Scanner):
                     "Redact sensitive fields before logging.",
                     confidence=Confidence.LIKELY.value,
                     severity=Severity.MEDIUM.value,
-                    evidence=redact_generic(m.group(0), 24, 8),
+                    evidence=redact_generic(text.strip()[:80], 24, 8),
                 )
             )
 

@@ -141,15 +141,13 @@ def decide(
         # Escalate is informational unless the finding is also block-class
         pass
 
-    # Privacy review flags (GDPR contextual — informational)
-    special = [
-        f
-        for f in findings
-        if f.laya_data_nature == "C"
-        or f.rule.startswith("PII.SPECIAL_CATEGORY")
-    ]
+    # Privacy review flags (GDPR contextual — informational).
+    # Strict thresholds: Art. 9 only on explicit SPECIAL_CATEGORY rule hits;
+    # Art. 35 only when a DPIA signal coexists with high-confidence PII.
+    special = [f for f in findings if f.rule == "PII.SPECIAL_CATEGORY"]
+    privacy_flagged = False
     if special and config.laya.flag_special_category:
-        reasons.append(REASON_FLAG_PRIVACY_REVIEW)
+        privacy_flagged = True
         if config.gdpr_context_enabled():
             privacy_notes.append(
                 "Special-category or high-sensitivity personal data signal "
@@ -157,13 +155,21 @@ def decide(
             )
 
     dpia = [f for f in findings if f.laya_dpia_signal == "A"]
-    if dpia and config.laya.flag_dpia_signal:
-        reasons.append(REASON_FLAG_PRIVACY_REVIEW)
+    strong_pii = [
+        f
+        for f in findings
+        if f.category == "pii"
+        and (f.confidence == "high" or f.rule == "PII.SPECIAL_CATEGORY")
+    ]
+    if dpia and strong_pii and config.laya.flag_dpia_signal:
+        privacy_flagged = True
         if config.gdpr_context_enabled():
             privacy_notes.append(
                 "Change may relate to large-scale or sensitive processing "
                 "(contextual reference: Art. 35). Not a DPIA determination."
             )
+    if privacy_flagged:
+        reasons.append(REASON_FLAG_PRIVACY_REVIEW)
 
     # Breach context: secrets + PII together, or amplifier A
     secrets = [f for f in findings if f.category == "secret"]

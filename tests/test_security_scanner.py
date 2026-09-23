@@ -85,6 +85,50 @@ def test_cors_wildcard():
     assert "SECURITY.CORS_WILDCARD" in rules(fs)
 
 
+def test_cors_express_empty():
+    fs = scan("app.use(cors());", file="server.js")
+    assert "SECURITY.CORS_WILDCARD" in rules(fs)
+
+
+def test_cors_socket_origin_star():
+    fs = scan('const io = new Server(server, { cors: { origin: "*" } });', file="s.js")
+    assert "SECURITY.CORS_WILDCARD" in rules(fs)
+
+
+def test_log_credential_interpolation():
+    fs = scan(
+        "console.log(`login - user: ${identifier}, Password: ${password}`);",
+        file="api.ts",
+    )
+    assert "SECURITY.LOG_CREDENTIAL" in rules(fs)
+    f = next(x for x in fs if x.rule == "SECURITY.LOG_CREDENTIAL")
+    assert f.severity == "high"
+    assert f.confidence == "high"
+
+
+def test_log_credential_not_bare_keyword():
+    fs = scan(
+        'console.warn("GOOGLE_CLIENT_ID/SECRET not found in .env");',
+        file="s.js",
+    )
+    assert "SECURITY.LOG_CREDENTIAL" not in rules(fs)
+
+
+def test_localstorage_password_flagged():
+    fs = scan(
+        "localStorage.setItem('auth_data', JSON.stringify({ token, user, pass: password }));",
+        file="api.ts",
+    )
+    assert "SECURITY.LOCALSTORAGE_SECRET" in rules(fs)
+    f = next(x for x in fs if x.rule == "SECURITY.LOCALSTORAGE_SECRET")
+    assert f.confidence == "high"
+
+
+def test_localstorage_safe_theme_not_flagged():
+    fs = scan('localStorage.setItem("theme", "dark");', file="ui.ts")
+    assert "SECURITY.LOCALSTORAGE_SECRET" not in rules(fs)
+
+
 def test_safe_crypto_code_no_noise():
     fs = scan("h = hashlib.sha256(data).hexdigest()", file="main.py")
     # weak hash rule may still catch sha1/md5 only

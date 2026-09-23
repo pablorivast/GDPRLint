@@ -63,6 +63,30 @@ _TLS_OFF = re.compile(r"verify\s*=\s*False|rejectUnauthorized\s*:\s*false", re.I
 _CORS_WILDCARD = re.compile(
     r"(?i)access-control-allow-origin\s*['\"]?\s*:\s*['\"]\*['\"]"
     r"|Access-Control-Allow-Origin:\s*\*"
+    # Express / Socket.IO wildcard CORS (common planted pattern)
+    r"|\borigin\s*[:=]\s*['\"]\*['\"]"
+    r"|(?<![\w.])cors\s*\(\s*\)"
+    r"|cors\s*\(\s*\{\s*\}"
+)
+_LOG_CREDENTIAL = re.compile(
+    r"(?i)\b(?:console\.(?:log|info|error|warn|debug)|logger?\.(?:log|info|error|warn|debug)"
+    r"|log(?:ger)?\s*\(|print(?:f)?\s*\(|System\.out)"
+    r".*?\b(?:password|passwd|token|secret|credential)s?\b"
+)
+_LOG_CREDENTIAL_INTERP = re.compile(
+    r"(?i)(?:"
+    r"\$\{[^}]*\b(?:password|passwd|token|secret)\b[^}]*\}"
+    r"|\b(?:password|passwd|token|secret)\b\s*\+"
+    r"|\+\s*\b(?:password|passwd|token|secret)\b"
+    r"|(?:password|passwd|token|secret)\s*,"
+    r"|,\s*(?:password|passwd|token|secret)\b"
+    r"|\b(?:password|passwd|token|secret)\s*[:=]"
+    r")"
+)
+_LOCALSTORAGE_SECRET = re.compile(
+    r"(?i)(?:localStorage|sessionStorage)\.setItem\s*\("
+    r"[^;]{0,200}?"
+    r"\b(?:password|passwd|pass|pwd|token|secret|credential|auth_data)\b"
 )
 _DEBUG_TRUE = re.compile(r"(?i)\b(?:debug|flask_debug|django_debug)\s*=\s*True\b|\bdebug\s*:\s*true\b")
 _WEAK_RANDOM = re.compile(
@@ -219,6 +243,29 @@ class SecurityScanner(Scanner):
             "CORS wildcard origin detected.",
             "Restrict Access-Control-Allow-Origin to trusted origins.",
             confidence=Confidence.LIKELY.value,
+        )
+        # Credential logging: require real interpolation of password/token
+        if _LOG_CREDENTIAL.search(text) and _LOG_CREDENTIAL_INTERP.search(text):
+            findings.append(
+                _sec(
+                    "SECURITY.LOG_CREDENTIAL",
+                    file,
+                    line_no,
+                    "Credential or token may be written to logs.",
+                    "Never log passwords or tokens; redact sensitive fields.",
+                    confidence=Confidence.HIGH.value,
+                    severity=Severity.HIGH.value,
+                    evidence=redact_generic(text.strip()[:80], 32, 8),
+                )
+            )
+        maybe(
+            "SECURITY.LOCALSTORAGE_SECRET",
+            _LOCALSTORAGE_SECRET,
+            "Credential or token stored in browser localStorage/sessionStorage.",
+            "Do not persist passwords or long-lived tokens in web storage; use memory or httpOnly cookies.",
+            confidence=Confidence.HIGH.value,
+            severity=Severity.HIGH.value,
+            skip_comment=False,
         )
         maybe(
             "SECURITY.DEBUG_TRUE",

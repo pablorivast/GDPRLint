@@ -42,7 +42,7 @@ def test_clean_scan_allows(git_repo: Path, stage):
 
 
 def test_pii_only_warns_and_exits_zero(git_repo: Path, stage):
-    stage("docs/users.md", "Contact: maria.garcia@example.com\n")
+    stage("docs/users.md", "Contact: maria.garcia@acme-corp.es\n")
     cfg = _cfg_secret_block()
     an = LayaAnalyzer(cfg, router=FakeRouter())
     decision = scan(git_repo, config=cfg, analyzer=an)
@@ -73,7 +73,7 @@ def test_mode_off_never_blocks(git_repo: Path, stage):
 
 
 def test_exception_suppresses_specific_finding(git_repo: Path, stage):
-    stage("fixtures/email.md", "Email: maria.garcia@example.com\n")
+    stage("fixtures/email.md", "Email: maria.garcia@acme-corp.es\n")
     cfg = _cfg_secret_block()
     cfg.rules["PII.EMAIL"] = "block"
     cfg.min_block_confidence = "high"
@@ -145,3 +145,132 @@ def test_gdpr_context_off_strips_notes(git_repo: Path, stage):
     an = LayaAnalyzer(cfg, router=FakeRouter())
     decision = scan(git_repo, config=cfg, analyzer=an)
     assert decision.privacy_notes == []
+
+
+def test_art9_only_on_special_category_rule(git_repo: Path, stage):
+    """Laya data_nature=C alone must not emit Art. 9 note."""
+    from laya_guard.finding import Finding, Category
+
+    cfg = _cfg_secret_block()
+    # Standalone decide() call — bypass scanners
+    from laya_guard.engine import decide
+
+    f = Finding(
+        rule="PII.EMAIL",
+        category=Category.PII.value,
+        severity="medium",
+        confidence="high",
+        file="a.py",
+        line=1,
+        message="email",
+        remediation="x",
+        evidence="a@b.co",
+        related_articles=("5.1.c",),
+    ).with_laya(data_nature="C", dpia_signal="B")
+    decision = decide([f], cfg, files_scanned=1, laya_available=True)
+    assert "FLAG_PRIVACY_REVIEW" not in decision.reasons
+    assert not any("Art. 9" in n for n in decision.privacy_notes)
+
+
+def test_art9_on_special_category_rule(git_repo: Path, stage):
+    from laya_guard.finding import Finding, Category
+    from laya_guard.engine import decide
+
+    cfg = _cfg_secret_block()
+    f = Finding(
+        rule="PII.SPECIAL_CATEGORY",
+        category=Category.PII.value,
+        severity="high",
+        confidence="likely",
+        file="a.py",
+        line=1,
+        message="health",
+        remediation="x",
+        evidence="****",
+        related_articles=("9",),
+    )
+    decision = decide([f], cfg, files_scanned=1, laya_available=True)
+    assert "FLAG_PRIVACY_REVIEW" in decision.reasons
+    assert any("Art. 9" in n for n in decision.privacy_notes)
+
+
+def test_art35_requires_strong_pii_with_dpia(git_repo: Path, stage):
+    from laya_guard.finding import Finding, Category
+    from laya_guard.engine import decide
+
+    cfg = _cfg_secret_block()
+    weak = Finding(
+        rule="PII.PHONE",
+        category=Category.PII.value,
+        severity="low",
+        confidence="possible",
+        file="a.py",
+        line=1,
+        message="phone",
+        remediation="x",
+        evidence="***",
+        related_articles=("5.1.c",),
+    ).with_laya(dpia_signal="A")
+    decision = decide([weak], cfg, files_scanned=1, laya_available=True)
+    assert not any("Art. 35" in n for n in decision.privacy_notes)
+
+    strong = Finding(
+        rule="PII.EMAIL",
+        category=Category.PII.value,
+        severity="medium",
+        confidence="high",
+        file="a.py",
+        line=2,
+        message="email",
+        remediation="x",
+        evidence="a@b.co",
+        related_articles=("5.1.c",),
+    ).with_laya(dpia_signal="A")
+    decision2 = decide([strong], cfg, files_scanned=1, laya_available=True)
+    assert any("Art. 35" in n for n in decision2.privacy_notes)
+
+
+def test_lockfile_default_excluded(git_repo: Path, stage):
+    stage("package-lock.json", '{ "version": "1.0.30001757" }\n')
+    cfg = _cfg_secret_block()
+    an = LayaAnalyzer(cfg, router=FakeRouter())
+    decision = scan(git_repo, config=cfg, analyzer=an)
+    assert not any(f.file.endswith("package-lock.json") for f in decision.findings)
+    assert not any(f.file.endswith("package-lock.json") for f in decision.findings)
+
+
+def test_planted_api_ts_credentials_block(git_repo: Path, stage):
+    """v0.2.0 regression: rentoy_online-style insecure login must block."""
+    stage(
+        "api.ts",
+        """
+    async login(identifier: string, password?: string): Promise<ApiUser> {
+        console.log(`Intento - Usuario: ${identifier}, Password: ${password}`);
+        const insecureUrl = `http://api.midominio.com/auth/login?username=${identifier}&password=${password}`;
+        const res = await fetch(insecureUrl, { method: 'GET' });
+        localStorage.setItem('auth_data', JSON.stringify({
+            token: userData.token,
+            user: identifier,
+            pass: password
+        }));
+        return userData;
+    },
+""",
+    )
+    cfg = _cfg_secret_block()
+    an = LayaAnalyzer(cfg, router=FakeRouter())
+    decision = scan(git_repo, config=cfg, analyzer=an)
+    rules_hit = {f.rule for f in decision.findings}
+    assert "SECRET.CREDENTIALS_IN_URL" in rules_hit
+    assert "SECURITY.LOG_CREDENTIAL" in rules_hit
+    assert "SECURITY.LOCALSTORAGE_SECRET" in rules_hit
+    blocking = {
+        f.rule
+        for f in decision.findings
+        if f.laya_decision == Decision.BLOCK.value
+    }
+    assert "SECRET.CREDENTIALS_IN_URL" in blocking
+    assert "SECURITY.LOG_CREDENTIAL" in blocking
+    assert "SECURITY.LOCALSTORAGE_SECRET" in blocking
+    assert decision.action == "block"
+    assert decision.exit_code == 1

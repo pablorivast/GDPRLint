@@ -220,6 +220,18 @@ _RULES: list[tuple[str, re.Pattern[str], str, str, str, str]] = [
         Confidence.LIKELY.value,
     ),
     (
+        # password/token/etc. as URL query parameters (history, proxies, Referer)
+        "SECRET.CREDENTIALS_IN_URL",
+        re.compile(
+            r"(?i)[?&](?:password|passwd|pwd|token|access_token|api_key|apikey"
+            r"|secret|client_secret|auth)=([^\s&\"']+)"
+        ),
+        "Credential or token transmitted as a URL query parameter.",
+        "Move credentials to request headers or body; never put them in URLs.",
+        Severity.HIGH.value,
+        Confidence.HIGH.value,
+    ),
+    (
         "SECRET.API_KEY",
         re.compile(
             r"(?i)\b(?:api[_-]?key|apikey|api[_-]?secret|access[_-]?token|auth[_-]?token"
@@ -283,7 +295,62 @@ _RULES: list[tuple[str, re.Pattern[str], str, str, str, str]] = [
         Severity.HIGH.value,
         Confidence.HIGH.value,
     ),
+    (
+        # YAML / compose / env style weak or hardcoded password values
+        "SECRET.HARDCODED_WEAK_PW",
+        re.compile(
+            r"(?i)\b(?:[A-Z0-9_]*_?(?:password|passwd|pwd)|password|passwd|pwd)\b"
+            r"\s*[:=]\s*['\"]?([^\s'\"#]{3,64})['\"]?"
+        ),
+        "Potential hardcoded password in configuration (often weak/dev default).",
+        "Move the password to an environment variable or secret manager; rotate weak defaults.",
+        Severity.MEDIUM.value,
+        Confidence.LIKELY.value,
+    ),
 ]
+
+# Known weak/dev passwords that should always surface as HARDCODED_WEAK_PW
+_WEAK_PASSWORDS = frozenset(
+    {
+        "rootpassword",
+        "rootpass",
+        "password",
+        "passw0rd",
+        "pass",
+        "admin",
+        "admin123",
+        "secret",
+        "changeme",
+        "letmein",
+        "qwerty",
+        "123456",
+        "12345678",
+        "default",
+        "toor",
+        "mysql",
+        "dbpassword",
+        "db_pass",
+        "root",
+    }
+)
+
+# Values that are not real credentials (env refs, empty, placeholders)
+_NON_SECRET_VALUES = (
+    "process.env",
+    "os.environ",
+    "os.getenv",
+    "import.meta",
+    "${",
+    "{{",
+    "<your",
+    "your_",
+    "your-",
+    "example",
+    "changeme",  # still weak if exact — handled separately
+    "redacted",
+    "dummy",
+    "placeholder",
+)
 
 
 class SecretScanner(Scanner):
@@ -295,7 +362,6 @@ class SecretScanner(Scanner):
     def scan_line(self, file: str, line_no: int, text: str) -> Sequence[Finding]:
         if not text or not text.strip():
             return []
-        # Skip obvious placeholder / documentation examples with obvious fakes
         findings: list[Finding] = []
         for rule, pattern, message, remediation, severity, confidence in self._rules:
             m = pattern.search(text)
@@ -303,10 +369,33 @@ class SecretScanner(Scanner):
                 continue
             raw = m.group(0)
             secret_val = m.group(1) if m.lastindex else raw
-            if _is_likely_placeholder(secret_val, rule) or _is_likely_placeholder(
+
+            if rule == "SECRET.CREDENTIALS_IN_URL":
+                # Template/interpolation values are the finding — not placeholders
+                pass
+            elif rule == "SECRET.HARDCODED_WEAK_PW":
+                # Only surface known-weak / dev-default passwords (or unquoted YAML keys)
+                val = secret_val.strip().strip("'\"")
+                low = val.lower()
+                if any(n in low for n in _NON_SECRET_VALUES if n not in {"changeme"}):
+                    continue
+                if low in _NON_SECRET_VALUES:
+                    continue
+                is_weak = low in _WEAK_PASSWORDS
+                # Unquoted YAML-style assignment of a short non-env value
+                yaml_style = ":" in raw and "'" not in raw and '"' not in raw
+                if not is_weak and not (yaml_style and 3 <= len(val) <= 64):
+                    continue
+                if not is_weak and _is_likely_placeholder(val, rule):
+                    continue
+                # Avoid double-reporting when SECRET.PASSWORD already matched
+                if any(f.line == line_no and f.rule == "SECRET.PASSWORD" for f in findings):
+                    continue
+            elif _is_likely_placeholder(secret_val, rule) or _is_likely_placeholder(
                 raw, rule
             ):
                 continue
+
             evidence = redact_secret(secret_val)
             articles: tuple[str, ...] = (_ART_5F, _ART_32)
             if rule.startswith("SECRET."):

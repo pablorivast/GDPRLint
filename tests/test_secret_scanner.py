@@ -64,6 +64,60 @@ def test_password_assignment_positive():
     assert "SECRET.PASSWORD" in rules(fs)
 
 
+def test_compose_weak_password_flagged():
+    fs = scan_line(
+        "MYSQL_ROOT_PASSWORD: rootpassword",
+        file="docker-compose.yml",
+    )
+    assert "SECRET.HARDCODED_WEAK_PW" in rules(fs)
+    f = next(x for x in fs if x.rule == "SECRET.HARDCODED_WEAK_PW")
+    assert "rootpassword" not in (f.evidence or "")
+    assert f.confidence == "likely"
+
+
+def test_compose_db_password_weak_flagged():
+    fs = scan_line("DB_PASSWORD: rootpassword", file="docker-compose.yml")
+    assert "SECRET.HARDCODED_WEAK_PW" in rules(fs)
+
+
+def test_env_ref_password_not_flagged_as_weak():
+    fs = scan_line("DB_PASSWORD=process.env.DB_PASSWORD")
+    assert "SECRET.HARDCODED_WEAK_PW" not in rules(fs)
+    assert "SECRET.PASSWORD" not in rules(fs)
+
+
+def test_strong_password_not_weak_rule():
+    fs = scan_line('password = "hunter2secret"')
+    # Strong hardcoded still hits SECRET.PASSWORD; weak rule may or may not —
+    # rootpassword case is the weak path. hunter2secret is not in weak list.
+    assert "SECRET.HARDCODED_WEAK_PW" not in rules(fs)
+
+
+def test_credentials_in_url_query_flagged():
+    fs = scan_line(
+        "const u = `http://api.example.com/login?username=${id}&password=${password}`;",
+        file="api.ts",
+    )
+    assert "SECRET.CREDENTIALS_IN_URL" in rules(fs)
+    f = next(x for x in fs if x.rule == "SECRET.CREDENTIALS_IN_URL")
+    assert f.confidence == "high"
+    # evidence redacted
+    assert "${password}" not in (f.evidence or "") or "****" in (f.evidence or "")
+
+
+def test_credentials_in_url_token():
+    fs = scan_line(
+        'fetch("https://x.test/a?token=abc123def456ghi789")',
+        file="client.js",
+    )
+    assert "SECRET.CREDENTIALS_IN_URL" in rules(fs)
+
+
+def test_url_without_credentials_not_flagged():
+    fs = scan_line('fetch(`${BASE_URL}/rooms?userId=${userId}`)', file="api.ts")
+    assert "SECRET.CREDENTIALS_IN_URL" not in rules(fs)
+
+
 def test_api_key_assignment_positive():
     fs = scan_line('api_key = "abcd1234efgh5678ijkl"')
     assert "SECRET.API_KEY" in rules(fs)

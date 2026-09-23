@@ -3,13 +3,13 @@
 import json
 from pathlib import Path
 
-from laya_guard.analyzer import (
+from gdprlint.analyzer import (
     LayaAnalyzer,
     RulesOnlyAnalyzer,
     build_analyzer,
 )
-from laya_guard.config import default_config
-from laya_guard.finding import Finding
+from gdprlint.config import default_config
+from gdprlint.finding import Finding
 from tests.conftest import FakeRouter
 
 
@@ -92,7 +92,7 @@ def test_disabled_laya_reports_unavailable(tmp_path: Path, capsys):
     a = LayaAnalyzer(cfg2, router=None)
     # force unavailable by clearing router without load success path:
     # Instead use RulesOnly via build
-    from laya_guard.analyzer import build_analyzer
+    from gdprlint.analyzer import build_analyzer
 
     an = build_analyzer(cfg)
     assert an.available is False

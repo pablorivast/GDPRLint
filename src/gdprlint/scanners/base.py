@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Sequence
 
-from laya_guard.finding import Finding
+from gdprlint.finding import Finding
 
 
 @dataclass(frozen=True)

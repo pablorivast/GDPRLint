@@ -5,26 +5,26 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from laya_guard.git_ops import GitError, ensure_repo, hooks_path
+from gdprlint.git_ops import GitError, ensure_repo, hooks_path
 
-BEGIN_MARK = "# >>> laya-guard begin (managed) >>>"
-END_MARK = "# <<< laya-guard end <<<"
+BEGIN_MARK = "# >>> gdprlint begin (managed) >>>"
+END_MARK = "# <<< gdprlint end <<<"
 
 # Prefer console script on PATH; fall back to the installing interpreter.
 _PY = sys.executable or "python3"
 HOOK_BODY = f"""{BEGIN_MARK}
-# Laya Guard pre-commit hook — technical privacy/security guardrail.
+# GDPRLint pre-commit hook — technical privacy/security guardrail.
 # Does not certify legal or GDPR compliance.
 # Mute Hugging Face / tqdm / transformers download noise during scan.
 export HF_HUB_DISABLE_PROGRESS_BARS=1
 export TQDM_DISABLE=1
 export TRANSFORMERS_VERBOSITY=error
-LAYA_GUARD_BIN="$(command -v laya-guard 2>/dev/null || true)"
-if [ -n "$LAYA_GUARD_BIN" ]; then
-    "$LAYA_GUARD_BIN" scan
+GDPR_LINT_BIN="$(command -v gdprlint 2>/dev/null || true)"
+if [ -n "$GDPR_LINT_BIN" ]; then
+    "$GDPR_LINT_BIN" scan
     status=$?
 else
-    "{_PY}" -m laya_guard scan
+    "{_PY}" -m gdprlint scan
     status=$?
 fi
 if [ "$status" -ne 0 ]; then

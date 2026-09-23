@@ -1,4 +1,4 @@
-"""Configuration loading for ``.laya-guard.json``."""
+"""Configuration loading for ``.gdprlint.json``."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, ClassVar
 
-CONFIG_FILENAME = ".laya-guard.json"
+CONFIG_FILENAME = ".gdprlint.json"
 
 VALID_ACTIONS = frozenset({"block", "warn", "off"})
 VALID_MODES = frozenset({"block", "off"})

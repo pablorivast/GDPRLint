@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Sequence
 
-from laya_guard.analyzer import (
+from gdprlint.analyzer import (
     REASON_BLOCK_SECRET_ROTATE,
     REASON_ESCALATE_REVIEW,
     REASON_FLAG_BREACH_CONTEXT,
@@ -15,16 +15,16 @@ from laya_guard.analyzer import (
     Analyzer,
     build_analyzer,
 )
-from laya_guard.config import Config, load_config
-from laya_guard.finding import (
+from gdprlint.config import Config, load_config
+from gdprlint.finding import (
     CommitDecision,
     Confidence,
     Decision,
     Finding,
     confidence_rank,
 )
-from laya_guard.git_ops import GitError, StagedDiff, get_staged_diff
-from laya_guard.scanners import default_scanners
+from gdprlint.git_ops import GitError, StagedDiff, get_staged_diff
+from gdprlint.scanners import default_scanners
 
 
 def run_scanners(
@@ -221,7 +221,7 @@ def scan(
     analyzer: Analyzer | None = None,
     diff: StagedDiff | None = None,
 ) -> CommitDecision:
-    """Full pipeline for ``laya-guard scan``."""
+    """Full pipeline for ``gdprlint scan``."""
     cfg = config if config is not None else load_config(cwd)
     if diff is None:
         diff = get_staged_diff(cwd)

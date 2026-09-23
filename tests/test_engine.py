@@ -2,12 +2,12 @@
 
 from pathlib import Path
 
-from laya_guard.analyzer import RulesOnlyAnalyzer
-from laya_guard.config import default_config, load_config
-from laya_guard.engine import scan
-from laya_guard.finding import Decision
+from gdprlint.analyzer import RulesOnlyAnalyzer
+from gdprlint.config import default_config, load_config
+from gdprlint.engine import scan
+from gdprlint.finding import Decision
 from tests.conftest import FakeRouter
-from laya_guard.analyzer import LayaAnalyzer
+from gdprlint.analyzer import LayaAnalyzer
 
 
 def _cfg_secret_block():
@@ -78,7 +78,7 @@ def test_exception_suppresses_specific_finding(git_repo: Path, stage):
     cfg.rules["PII.EMAIL"] = "block"
     cfg.min_block_confidence = "high"
     cfg.exceptions = []
-    from laya_guard.config import ExceptionRule
+    from gdprlint.config import ExceptionRule
 
     cfg.exceptions = [ExceptionRule(rule="PII.EMAIL", file="fixtures/email.md")]
     an = LayaAnalyzer(cfg, router=FakeRouter())
@@ -149,11 +149,11 @@ def test_gdpr_context_off_strips_notes(git_repo: Path, stage):
 
 def test_art9_only_on_special_category_rule(git_repo: Path, stage):
     """Laya data_nature=C alone must not emit Art. 9 note."""
-    from laya_guard.finding import Finding, Category
+    from gdprlint.finding import Finding, Category
 
     cfg = _cfg_secret_block()
     # Standalone decide() call — bypass scanners
-    from laya_guard.engine import decide
+    from gdprlint.engine import decide
 
     f = Finding(
         rule="PII.EMAIL",
@@ -173,8 +173,8 @@ def test_art9_only_on_special_category_rule(git_repo: Path, stage):
 
 
 def test_art9_on_special_category_rule(git_repo: Path, stage):
-    from laya_guard.finding import Finding, Category
-    from laya_guard.engine import decide
+    from gdprlint.finding import Finding, Category
+    from gdprlint.engine import decide
 
     cfg = _cfg_secret_block()
     f = Finding(
@@ -195,8 +195,8 @@ def test_art9_on_special_category_rule(git_repo: Path, stage):
 
 
 def test_art35_requires_strong_pii_with_dpia(git_repo: Path, stage):
-    from laya_guard.finding import Finding, Category
-    from laya_guard.engine import decide
+    from gdprlint.finding import Finding, Category
+    from gdprlint.engine import decide
 
     cfg = _cfg_secret_block()
     weak = Finding(

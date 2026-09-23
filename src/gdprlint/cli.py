@@ -1,4 +1,4 @@
-"""Laya Guard command-line interface."""
+"""GDPRLint command-line interface."""
 
 from __future__ import annotations
 
@@ -7,12 +7,12 @@ import sys
 from pathlib import Path
 from typing import Sequence, TextIO
 
-from laya_guard import __version__
-from laya_guard.config import ConfigError, load_config
-from laya_guard.engine import scan
-from laya_guard.git_ops import GitError
-from laya_guard.hook import HookError, install_hook, is_installed
-from laya_guard.reporting import render
+from gdprlint import __version__
+from gdprlint.config import ConfigError, load_config
+from gdprlint.engine import scan
+from gdprlint.git_ops import GitError
+from gdprlint.hook import HookError, install_hook, is_installed
+from gdprlint.reporting import render
 
 EXIT_OK = 0
 EXIT_BLOCK = 1
@@ -21,7 +21,7 @@ EXIT_ERROR = 2
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="laya-guard",
+        prog="gdprlint",
         description=(
             "Technical privacy and security guardrail for staged Git changes. "
             "Does not certify legal or GDPR compliance."
@@ -30,7 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--version",
         action="version",
-        version=f"laya-guard {__version__}",
+        version=f"gdprlint {__version__}",
     )
     sub = parser.add_subparsers(dest="command")
 
@@ -71,7 +71,7 @@ def cmd_scan(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
     try:
         cfg = load_config(Path.cwd())
     except ConfigError as exc:
-        print(f"laya-guard: config error: {exc}", file=err)
+        print(f"gdprlint: config error: {exc}", file=err)
         return EXIT_ERROR
 
     try:
@@ -79,10 +79,10 @@ def cmd_scan(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
             warnings.filterwarnings("ignore", message=r".*invalid temperatures.*")
             decision = scan(Path.cwd(), config=cfg)
     except GitError as exc:
-        print(f"laya-guard: git error: {exc}", file=err)
+        print(f"gdprlint: git error: {exc}", file=err)
         return EXIT_ERROR
     except Exception as exc:  # noqa: BLE001
-        print(f"laya-guard: unexpected error: {type(exc).__name__}: {exc}", file=err)
+        print(f"gdprlint: unexpected error: {type(exc).__name__}: {exc}", file=err)
         return EXIT_ERROR
 
     if getattr(args, "quiet", False) and decision.action != "block":
@@ -97,13 +97,13 @@ def cmd_install(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
     try:
         path = install_hook(Path.cwd())
     except HookError as exc:
-        print(f"laya-guard: {exc}", file=err)
+        print(f"gdprlint: {exc}", file=err)
         return EXIT_ERROR
     except GitError as exc:
-        print(f"laya-guard: {exc}", file=err)
+        print(f"gdprlint: {exc}", file=err)
         return EXIT_ERROR
 
-    print("Laya Guard", file=out)
+    print("GDPRLint", file=out)
     print("────────────────────────────────────────", file=out)
     print(file=out)
     if already:
@@ -111,23 +111,23 @@ def cmd_install(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
     else:
         print(f"✓ Pre-commit hook installed: {path}", file=out)
     print(file=out)
-    print("Staged commits will run: laya-guard scan", file=out)
+    print("Staged commits will run: gdprlint scan", file=out)
     return EXIT_OK
 
 
 def cmd_uninstall(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
-    from laya_guard.hook import uninstall_hook
+    from gdprlint.hook import uninstall_hook
 
     try:
         removed = uninstall_hook(Path.cwd())
     except HookError as exc:
-        print(f"laya-guard: {exc}", file=err)
+        print(f"gdprlint: {exc}", file=err)
         return EXIT_ERROR
 
     if removed:
-        print("✓ Laya Guard hook removed.", file=out)
+        print("✓ GDPRLint hook removed.", file=out)
     else:
-        print("No managed Laya Guard hook found.", file=out)
+        print("No managed GDPRLint hook found.", file=out)
     return EXIT_OK
 
 

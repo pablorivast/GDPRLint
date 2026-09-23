@@ -1,6 +1,6 @@
 """PII scanner positives, confidence tiers, and false positives."""
 
-from laya_guard.scanners.pii import PIIScanner
+from gdprlint.scanners.pii import PIIScanner
 
 
 def scan(text: str, file: str = "src/import.py"):

@@ -1,6 +1,6 @@
 """Security pattern scanner tests."""
 
-from laya_guard.scanners.security import SecurityScanner
+from gdprlint.scanners.security import SecurityScanner
 
 
 def scan(text: str, file: str = "app.py"):

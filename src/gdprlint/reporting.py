@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import TextIO
 
-from laya_guard.finding import CommitDecision, Decision, Finding
+from gdprlint.finding import CommitDecision, Decision, Finding
 
 DIVIDER = "────────────────────────────────────────"
 DISCLAIMER = (
-    "Laya Guard is a technical privacy and security guardrail. "
+    "GDPRLint is a technical privacy and security guardrail. "
     "It does not certify legal or GDPR compliance."
 )
 
@@ -49,7 +49,7 @@ def _print_finding(out: TextIO, f: Finding, *, show_gdpr: bool) -> None:
 
 
 def render_blocked(decision: CommitDecision, out: TextIO) -> None:
-    print("Laya Guard", file=out)
+    print("GDPRLint", file=out)
     print(DIVIDER, file=out)
     print(file=out)
 
@@ -91,7 +91,7 @@ def render_blocked(decision: CommitDecision, out: TextIO) -> None:
 
     print(file=out)
     print("The staged changes contain potential exposures.", file=out)
-    print("Remove the issue or explicitly configure an exception in .laya-guard.json.", file=out)
+    print("Remove the issue or explicitly configure an exception in .gdprlint.json.", file=out)
     print(file=out)
     print("Commit blocked.", file=out)
     print(file=out)
@@ -110,7 +110,7 @@ def render(decision: CommitDecision, out: TextIO) -> None:
         if f.laya_decision != Decision.SUPPRESS_FP.value
     ]
 
-    print("Laya Guard", file=out)
+    print("GDPRLint", file=out)
     print(DIVIDER, file=out)
     print(file=out)
     print(f"✓ {decision.files_scanned} files scanned", file=out)

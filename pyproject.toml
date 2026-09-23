@@ -3,13 +3,13 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "laya-guard"
+name = "gdprlint"
 version = "0.2.0"
 description = "Technical privacy and security guardrail for coding agents via Git pre-commit hooks"
 readme = "README.md"
 license = { text = "Apache-2.0" }
 requires-python = ">=3.10"
-authors = [{ name = "Laya Guard contributors" }]
+authors = [{ name = "GDPRLint contributors" }]
 keywords = ["security", "privacy", "gdpr", "secrets", "pii", "git", "pre-commit", "ai-agents"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -34,18 +34,13 @@ dev = [
 ]
 
 [project.scripts]
-laya-guard = "laya_guard.cli:main"
-
-[project.urls]
-Homepage = "https://github.com/laya-guard/laya-guard"
-Documentation = "https://github.com/laya-guard/laya-guard#readme"
-Issues = "https://github.com/laya-guard/laya-guard/issues"
+gdprlint = "gdprlint.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-laya_guard = ["py.typed"]
+gdprlint = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -55,5 +50,5 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["laya_guard"]
+source = ["gdprlint"]
 branch = true

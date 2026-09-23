@@ -60,5 +60,5 @@ Thumbs.db
 *.ckpt
 
 # Generated reports (privacy: do not commit scan output)
-laya-guard-report*.json
-laya-guard-report*.sarif
+gdprlint-report*.json
+gdprlint-report*.sarif

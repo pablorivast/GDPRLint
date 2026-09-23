@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from laya_guard.config import Config, ConfigError, default_config, load_config
+from gdprlint.config import Config, ConfigError, default_config, load_config
 
 
 def test_default_config_actions():
@@ -23,7 +23,7 @@ def test_load_missing_file_returns_defaults(tmp_path: Path):
 
 
 def test_load_custom_rules(tmp_path: Path):
-    (tmp_path / ".laya-guard.json").write_text(
+    (tmp_path / ".gdprlint.json").write_text(
         json.dumps(
             {
                 "mode": "block",
@@ -42,7 +42,7 @@ def test_load_custom_rules(tmp_path: Path):
 
 
 def test_glob_specificity_longest_wins(tmp_path: Path):
-    (tmp_path / ".laya-guard.json").write_text(
+    (tmp_path / ".gdprlint.json").write_text(
         json.dumps({"rules": {"PII.*": "warn", "PII.EMAIL": "block"}}),
         encoding="utf-8",
     )
@@ -51,7 +51,7 @@ def test_glob_specificity_longest_wins(tmp_path: Path):
 
 
 def test_exceptions_match_rule_file_line(tmp_path: Path):
-    (tmp_path / ".laya-guard.json").write_text(
+    (tmp_path / ".gdprlint.json").write_text(
         json.dumps(
             {
                 "exceptions": [
@@ -68,13 +68,13 @@ def test_exceptions_match_rule_file_line(tmp_path: Path):
 
 
 def test_invalid_mode_raises(tmp_path: Path):
-    (tmp_path / ".laya-guard.json").write_text(json.dumps({"mode": "nope"}), encoding="utf-8")
+    (tmp_path / ".gdprlint.json").write_text(json.dumps({"mode": "nope"}), encoding="utf-8")
     with pytest.raises(ConfigError):
         load_config(tmp_path)
 
 
 def test_invalid_rule_action_raises(tmp_path: Path):
-    (tmp_path / ".laya-guard.json").write_text(
+    (tmp_path / ".gdprlint.json").write_text(
         json.dumps({"rules": {"SECRET.*": "explode"}}), encoding="utf-8"
     )
     with pytest.raises(ConfigError):
@@ -82,13 +82,13 @@ def test_invalid_rule_action_raises(tmp_path: Path):
 
 
 def test_invalid_json_raises(tmp_path: Path):
-    (tmp_path / ".laya-guard.json").write_text("{nope", encoding="utf-8")
+    (tmp_path / ".gdprlint.json").write_text("{nope", encoding="utf-8")
     with pytest.raises(ConfigError):
         load_config(tmp_path)
 
 
 def test_laya_config_bounds(tmp_path: Path):
-    (tmp_path / ".laya-guard.json").write_text(
+    (tmp_path / ".gdprlint.json").write_text(
         json.dumps({"laya": {"enabled": False, "min_confidence": 1.5}}),
         encoding="utf-8",
     )
@@ -97,7 +97,7 @@ def test_laya_config_bounds(tmp_path: Path):
 
 
 def test_gdpr_context_off(tmp_path: Path):
-    (tmp_path / ".laya-guard.json").write_text(
+    (tmp_path / ".gdprlint.json").write_text(
         json.dumps({"gdpr_context": "off"}), encoding="utf-8"
     )
     cfg = load_config(tmp_path)
@@ -125,7 +125,7 @@ def test_default_excludes_lockfiles_and_min_js():
 
 
 def test_exclude_defaults_false_disables_builtins(tmp_path: Path):
-    (tmp_path / ".laya-guard.json").write_text(
+    (tmp_path / ".gdprlint.json").write_text(
         json.dumps({"exclude_defaults": False}), encoding="utf-8"
     )
     cfg = load_config(tmp_path)

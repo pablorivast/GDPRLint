@@ -5,9 +5,9 @@ from __future__ import annotations
 import re
 from typing import Sequence
 
-from laya_guard.finding import Category, Confidence, Finding, Severity
-from laya_guard.redact import redact_secret
-from laya_guard.scanners.base import Scanner
+from gdprlint.finding import Category, Confidence, Finding, Severity
+from gdprlint.redact import redact_secret
+from gdprlint.scanners.base import Scanner
 
 # GDPR context tags are informational only — not legal advice.
 _ART_32 = "32"

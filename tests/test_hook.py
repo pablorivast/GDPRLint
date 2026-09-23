@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from laya_guard.hook import (
+from gdprlint.hook import (
     BEGIN_MARK,
     END_MARK,
     HOOK_BODY,

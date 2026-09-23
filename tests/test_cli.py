@@ -7,7 +7,7 @@ import sys
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
-from laya_guard.cli import main
+from gdprlint.cli import main
 from tests.conftest import _git, stage_file
 
 
@@ -29,7 +29,7 @@ def test_version_flag(capsys):
     except SystemExit as e:
         assert e.code == 0
     captured = capsys.readouterr()
-    assert "laya-guard" in captured.out
+    assert "gdprlint" in captured.out
     assert "0.2.0" in captured.out
 
 
@@ -65,7 +65,7 @@ def test_scan_blocks_secret(git_repo: Path):
     # Full secret must never appear
     full = "sk-proj-abcDEF1234567890xyzXYZ9f2a"
     assert full not in out
-    assert "Laya Guard" in out
+    assert "GDPRLint" in out
     # Disclaimer present on block path
     assert "does not certify legal or GDPR compliance" in out
 

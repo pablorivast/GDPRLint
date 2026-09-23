@@ -2,9 +2,9 @@
 
 import io
 
-from laya_guard.finding import CommitDecision, Finding
-from laya_guard.redact import mask_digits, redact_email, redact_secret
-from laya_guard.reporting import render
+from gdprlint.finding import CommitDecision, Finding
+from gdprlint.redact import mask_digits, redact_email, redact_secret
+from gdprlint.reporting import render
 
 
 def test_redact_secret_hides_middle():

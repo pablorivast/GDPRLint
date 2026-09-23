@@ -1,6 +1,6 @@
 """Secret scanner positive and false-positive cases."""
 
-from laya_guard.scanners.secrets import SecretScanner
+from gdprlint.scanners.secrets import SecretScanner
 
 
 def scan_line(text: str, file: str = "src/config.js"):

@@ -5,9 +5,9 @@ from __future__ import annotations
 import re
 from typing import Sequence
 
-from laya_guard.finding import Category, Confidence, Finding, Severity
-from laya_guard.redact import mask_digits, redact_email, redact_generic
-from laya_guard.scanners.base import Scanner
+from gdprlint.finding import Category, Confidence, Finding, Severity
+from gdprlint.redact import mask_digits, redact_email, redact_generic
+from gdprlint.scanners.base import Scanner
 
 _ART_5C = "5.1.c"
 _ART_25 = "25"

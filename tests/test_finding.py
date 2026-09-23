@@ -1,6 +1,6 @@
 """Finding model unit tests."""
 
-from laya_guard.finding import (
+from gdprlint.finding import (
     Category,
     Confidence,
     Decision,

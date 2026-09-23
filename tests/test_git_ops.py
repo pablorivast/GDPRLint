@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from laya_guard.git_ops import (
+from gdprlint.git_ops import (
     ensure_repo,
     get_staged_diff,
     parse_staged_diff,

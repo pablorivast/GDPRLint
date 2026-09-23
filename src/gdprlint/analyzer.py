@@ -10,8 +10,8 @@ from __future__ import annotations
 import sys
 from typing import Any, Protocol, Sequence
 
-from laya_guard.config import Config
-from laya_guard.finding import Finding
+from gdprlint.config import Config
+from gdprlint.finding import Finding
 
 # Stable decision reason codes (machine-readable)
 REASON_SUPPRESS_FP = "SUPPRESS_FALSE_POSITIVE"
@@ -195,7 +195,7 @@ class LayaAnalyzer:
             return []
         if not self.available or self._router is None:
             for line in [
-                f"laya-guard: Laya unavailable ({self._load_error or 'disabled'}); "
+                f"gdprlint: Laya unavailable ({self._load_error or 'disabled'}); "
                 "running rules-only mode."
             ]:
                 print(line, file=self._stderr)
@@ -205,7 +205,7 @@ class LayaAnalyzer:
             return self._predict(findings)
         except Exception as exc:  # noqa: BLE001
             print(
-                f"laya-guard: Laya predict failed ({type(exc).__name__}: {exc}); "
+                f"gdprlint: Laya predict failed ({type(exc).__name__}: {exc}); "
                 "running rules-only mode for this scan.",
                 file=self._stderr,
             )

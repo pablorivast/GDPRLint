@@ -1,4 +1,4 @@
-"""Laya Guard — technical privacy and security guardrail for coding agents.
+"""GDPRLint — technical privacy and security guardrail for coding agents.
 
 This package does not certify legal or GDPR compliance.
 """

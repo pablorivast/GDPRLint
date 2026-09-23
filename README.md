@@ -1,10 +1,31 @@
-# Laya Guard
+<p align="center">
+  <img src="docs/assets/logo.svg" alt="GDPRLint logo" width="96" height="96"/>
+</p>
 
-**Technical privacy and security guardrail for coding agents, enforced at the Git commit boundary.**
+<h1 align="center">GDPRLint</h1>
 
-> **Laya Guard is a technical privacy and security guardrail. It does not certify legal or GDPR compliance.**
+<p align="center">
+  <strong>Technical privacy and security guardrail for coding agents, enforced at the Git commit boundary.</strong>
+</p>
 
-Coding agents (OpenAI Codex, Claude Code, OpenCode, Cursor, and others) modify repositories at high velocity. Laya Guard inspects **staged Git changes** before they enter history and can **block** commits that introduce secrets, personal data exposures, or basic dangerous code patterns.
+<p align="center">
+  <img alt="version" src="https://img.shields.io/badge/version-0.2.0-2563eb"/>
+  <img alt="license" src="https://img.shields.io/badge/license-Apache--2.0-green"/>
+  <img alt="python" src="https://img.shields.io/badge/python-%E2%89%A53.10-3776ab"/>
+  <img alt="tests" src="https://img.shields.io/badge/tests-136%20passing-brightgreen"/>
+  <img alt="status" src="https://img.shields.io/badge/status-alpha-orange"/>
+  <img alt="local-first" src="https://img.shields.io/badge/local-first-purple"/>
+</p>
+
+<p align="center">
+  <em>GDPR Lint for the commit boundary — block secrets, PII leaks, and dangerous patterns before they enter history.</em>
+</p>
+
+> **GDPRLint is a technical privacy and security guardrail. It does not certify legal or GDPR compliance.**
+
+## Introduction
+
+Coding agents (OpenAI Codex, Claude Code, OpenCode, Cursor, and others) modify repositories at high velocity. GDPRLint inspects **staged Git changes** before they enter history and can **block** commits that introduce secrets, personal data exposures, or basic dangerous code patterns.
 
 ```
 Coding Agent
@@ -16,7 +37,7 @@ git add .
 Git staged changes
     │
     ▼
-Laya Guard (pre-commit)
+GDPRLint (pre-commit)
     ├── Secrets / credentials
     ├── PII / personal data
     └── Dangerous code patterns
@@ -48,31 +69,31 @@ Requires Python ≥ 3.10 and Git.
 
 ```bash
 git clone <this-repo>
-cd laya-guard
+cd gdprlint
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 
-laya-guard --version
+gdprlint --version
 ```
 
-> **First Laya load:** the decisor uses local weights from Hugging Face (`pip` dependency `laya`). The first predict may download a checkpoint (~hundreds of MB). If the network or model is unavailable, Laya Guard **falls back to rules-only mode** and still blocks high-confidence secrets.
+> **First Laya load:** the decisor uses local weights from Hugging Face (`pip` dependency `laya`). The first predict may download a checkpoint (~hundreds of MB). If the network or model is unavailable, GDPRLint **falls back to rules-only mode** and still blocks high-confidence secrets.
 
 ## Usage
 
 ```bash
 # In your project repository
-laya-guard install    # writes .git/hooks/pre-commit (idempotent)
+gdprlint install    # writes .git/hooks/pre-commit (idempotent)
 
 git add .
 git commit -m "my change"
-# → Laya Guard runs automatically and may block the commit
+# → GDPRLint runs automatically and may block the commit
 ```
 
 Manual scan:
 
 ```bash
-laya-guard scan
+gdprlint scan
 ```
 
 Exit codes:
@@ -83,11 +104,11 @@ Exit codes:
 | `1` | Commit blocked |
 | `2` | Usage / config / git error |
 
-`laya-guard uninstall` removes the managed hook block.
+`gdprlint uninstall` removes the managed hook block.
 
 ## How the Git hook works
 
-`laya-guard install` appends a delimited block to `pre-commit` (creating the file if needed). Existing hooks are preserved. On each commit:
+`gdprlint install` appends a delimited block to `pre-commit` (creating the file if needed). Existing hooks are preserved. On each commit:
 
 1. `git diff --cached` → only **added lines** staged for commit  
 2. Scanners produce **Findings** (evidence already redacted)  
@@ -96,7 +117,7 @@ Exit codes:
 
 Directories like `node_modules/` are only touched if you **explicitly staged** files from them.
 
-## Configuration — `.laya-guard.json`
+## Configuration — `.gdprlint.json`
 
 ```json
 {
@@ -135,7 +156,7 @@ Built-in excludes (v0.1.1+): `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`,
 
 Blocking credential rules (v0.2.0): `SECRET.CREDENTIALS_IN_URL`, `SECURITY.LOG_CREDENTIAL`, `SECURITY.LOCALSTORAGE_SECRET`.
 
-See [`examples/.laya-guard.json`](examples/.laya-guard.json).
+See [`examples/.gdprlint.json`](examples/.gdprlint.json).
 
 ## Architecture (prepared for growth)
 
@@ -152,23 +173,23 @@ Detector → Finding → LayaAnalyzer (optional gate) → DecisionEngine → ALL
 
 ## RGPD / GDPR positioning
 
-Laya Guard maps some patterns to **contextual** article tags (e.g. Art. 5(1)(f), 32, 33, 9, 25, 35) as **risk indicators for humans**.
+GDPRLint maps some patterns to **contextual** article tags (e.g. Art. 5(1)(f), 32, 33, 9, 25, 35) as **risk indicators for humans**.
 
-| Laya Guard **does** | Laya Guard **does not** |
+| GDPRLint **does** | GDPRLint **does not** |
 |---|---|
 | Detect technical exposures in staged code | Certify GDPR/RGPD compliance |
 | Recommend remediation | Replace a DPO or legal review |
 | Flag “privacy review suggested” signals | Issue DPIAs or notify authorities |
 | Redact secrets in output | Send findings to external LLM APIs by default |
 
-**Laya Guard is a technical privacy and security guardrail. It does not certify legal or GDPR compliance.**
+**GDPRLint is a technical privacy and security guardrail. It does not certify legal or GDPR compliance.**
 
 ## Adding a rule
 
-1. Add a pattern + `rule` id in `src/laya_guard/scanners/*.py`  
+1. Add a pattern + `rule` id in `src/gdprlint/scanners/*.py`  
 2. Attach `related_articles` only as contextual tags  
 3. Add positive **and** false-positive tests under `tests/`  
-4. Keep evidence **redacted** via `laya_guard.redact`  
+4. Keep evidence **redacted** via `gdprlint.redact`  
 
 Rule ID shape: `SECRET.*` · `PII.*` · `SECURITY.*`.
 
@@ -188,16 +209,6 @@ pytest -m "not laya_e2e"   # skip tests that load real weights
 - Binary staged files are not content-scanned  
 - No name detection (deliberate)  
 - **Does not** implement multi-jurisdiction privacy law automatically  
-
-## Roadmap
-
-**v0.2** — more secret/PII/security rules · SARIF + JSON output · CI integration  
-
-**v0.3** — deeper Laya integration · explanations · FP reduction with feedback  
-
-**v0.4** — data-flow signals · third-party egress hints · org policies  
-
-**Future** — VS Code · GitHub Actions · GitLab CI · pre-push · agent action audit · data lineage · policies-as-code  
 
 ## Contributing
 

@@ -30,7 +30,7 @@ def test_version_flag(capsys):
         assert e.code == 0
     captured = capsys.readouterr()
     assert "laya-guard" in captured.out
-    assert "0.1.0" in captured.out
+    assert "0.2.0" in captured.out
 
 
 def test_help_when_no_command(capsys):

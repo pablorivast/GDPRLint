@@ -22,8 +22,9 @@ from gdprlint.finding import (
     Finding,
     confidence_rank,
 )
-from gdprlint.git_ops import StagedDiff, get_range_diff, get_staged_diff, get_worktree_diff
+from gdprlint.git_ops import StagedDiff, get_range_diff, get_staged_diff
 from gdprlint.scanners import default_scanners
+from gdprlint.worktree import walk_worktree
 
 
 def run_scanners(
@@ -234,14 +235,14 @@ def scan(
 ) -> CommitDecision:
     """Full pipeline for ``gdprlint scan``.
 
-    ``mode`` selects the input: ``staged`` (default), ``all`` (every tracked
-    and untracked non-ignored file) or ``history`` (added lines across
-    ``rev_range``).
+    ``mode`` selects the input: ``staged`` (default), ``all`` (every
+    non-ignored file in the worktree, git optional) or ``history`` (added
+    lines across ``rev_range``).
     """
     cfg = config if config is not None else load_config(cwd)
     if diff is None:
         if mode == "all":
-            diff = get_worktree_diff(cwd, is_excluded=cfg.is_excluded)
+            diff = walk_worktree(cwd, is_excluded=cfg.is_excluded)
         elif mode == "history":
             diff = get_range_diff(cwd, rev_range or "")
         else:

@@ -83,7 +83,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--all",
         dest="scan_all",
         action="store_true",
-        help="scan every tracked and untracked (non-ignored) file instead of staged changes",
+        help="scan all non-ignored worktree files (works without git) instead of staged changes",
     )
     mode_group.add_argument(
         "--history",

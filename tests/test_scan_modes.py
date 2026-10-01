@@ -130,3 +130,37 @@ def test_scan_all_and_history_are_mutually_exclusive(git_repo: Path):
     with pytest.raises(SystemExit) as exc:
         run_cli(["scan", "--all", "--history", "HEAD"], git_repo)
     assert exc.value.code == 2
+
+
+def test_scan_all_works_outside_git_repository(tmp_path: Path):
+    (tmp_path / "leak.js").write_text(f'token = "{SECRET}";\n', encoding="utf-8")
+
+    # Plain staged mode still requires a repository
+    code, _out, err = run_cli(["scan", "--no-laya"], tmp_path)
+    assert code == 2
+    assert "git error" in err.lower() or "not a git" in err.lower()
+
+    code, out, _err = run_cli(["scan", "--all", "--no-laya"], tmp_path)
+    assert code == 1
+    assert "Commit blocked." in out
+    assert SECRET not in out
+
+
+def test_scan_all_honors_gitignore_outside_git(tmp_path: Path):
+    (tmp_path / ".gitignore").write_text("leak.js\n", encoding="utf-8")
+    (tmp_path / "leak.js").write_text(f'token = "{SECRET}";\n', encoding="utf-8")
+
+    code, out, _err = run_cli(["scan", "--all", "--no-laya"], tmp_path)
+    assert code == 0
+    assert "Commit allowed." in out
+
+
+def test_scan_all_json_reports_mode_outside_git(tmp_path: Path):
+    (tmp_path / "leak.js").write_text(f'token = "{SECRET}";\n', encoding="utf-8")
+    code, out, _err = run_cli(
+        ["scan", "--all", "--no-laya", "--format", "json"], tmp_path
+    )
+    data = json.loads(out)
+    assert data["mode"] == "all"
+    assert code == 1
+    assert data["blocked"] is True

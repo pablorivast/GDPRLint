@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import subprocess
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -215,10 +214,6 @@ def get_staged_diff(cwd: Path | None = None) -> StagedDiff:
     return parse_staged_diff(raw)
 
 
-# Skips oversized files in ``--all`` mode (line scanners are line-oriented).
-MAX_SCAN_FILE_BYTES = 1_048_576
-
-
 def get_range_diff(cwd: Path | None = None, rev_range: str = "") -> StagedDiff:
     """Return added lines across a revision range (e.g. ``main~3..main``)."""
     base = Path(cwd) if cwd else Path.cwd()
@@ -237,41 +232,6 @@ def get_range_diff(cwd: Path | None = None, rev_range: str = "") -> StagedDiff:
         base,
     )
     return parse_staged_diff(raw)
-
-
-def get_worktree_diff(
-    cwd: Path | None = None,
-    *,
-    is_excluded: Callable[[str], bool] | None = None,
-) -> StagedDiff:
-    """Return every line of tracked and untracked (non-ignored) files.
-
-    Binary files (NUL byte in the first 8 KiB) and files larger than
-    :data:`MAX_SCAN_FILE_BYTES` are counted but not scanned.
-    """
-    base = ensure_repo(Path(cwd) if cwd else Path.cwd())
-    out = _run_git(["ls-files", "--cached", "--others", "--exclude-standard"], base)
-    result = StagedDiff()
-    for rel in out.splitlines():
-        if not rel or (is_excluded is not None and is_excluded(rel)):
-            continue
-        path = base / rel
-        try:
-            data = path.read_bytes()
-        except OSError:
-            continue
-        if rel not in result.files:
-            result.files.append(rel)
-        if b"\x00" in data[:8192]:
-            if rel not in result.binary_files:
-                result.binary_files.append(rel)
-            continue
-        if len(data) > MAX_SCAN_FILE_BYTES:
-            continue
-        text = data.decode("utf-8", errors="replace")
-        for line_no, line in enumerate(text.splitlines(), start=1):
-            result.added_lines.append(AddedLine(path=rel, line_no=line_no, text=line))
-    return result
 
 
 def staged_file_count(diff: StagedDiff) -> int:

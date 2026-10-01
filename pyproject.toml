@@ -25,6 +25,7 @@ classifiers = [
 ]
 dependencies = [
     "laya>=0.3.7",
+    "pathspec>=1.0",
 ]
 
 [project.urls]

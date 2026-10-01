@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 from gdprlint.analyzer import (
     REASON_BLOCK_SECRET_ROTATE,
@@ -18,12 +18,11 @@ from gdprlint.analyzer import (
 from gdprlint.config import Config, load_config
 from gdprlint.finding import (
     CommitDecision,
-    Confidence,
     Decision,
     Finding,
     confidence_rank,
 )
-from gdprlint.git_ops import GitError, StagedDiff, get_staged_diff
+from gdprlint.git_ops import StagedDiff, get_staged_diff
 from gdprlint.scanners import default_scanners
 
 
@@ -83,10 +82,13 @@ def apply_gate_decisions(findings: Sequence[Finding], config: Config) -> list[Fi
             # low-confidence FP: do not block on laya alone suppression
             if f.laya_confidence is None or f.laya_confidence < config.laya.min_confidence:
                 laya_ok = False
-        elif f.laya_true_positive is None and f.laya_confidence is not None:
+        elif (
+            f.laya_true_positive is None
+            and f.laya_confidence is not None
+            and f.laya_confidence < config.laya.min_confidence
+        ):
             # uncertain — only block if base is high and laya not strongly negative
-            if f.laya_confidence < config.laya.min_confidence:
-                laya_ok = base_blocks  # still allow base rules to block high secrets
+            laya_ok = base_blocks  # still allow base rules to block high secrets
 
         if base_blocks and laya_ok:
             out.append(_annotated(f, Decision.BLOCK))
@@ -130,16 +132,20 @@ def decide(
         and not config.is_excluded(f.file)
         and not config.is_excepted(f.rule, f.file, f.line)
     ]
-    warns = [f for f in findings if f.laya_decision in (Decision.WARN.value, Decision.ESCALATE_REVIEW.value)]
+    warns = [
+        f
+        for f in findings
+        if f.laya_decision in (Decision.WARN.value, Decision.ESCALATE_REVIEW.value)
+    ]
     suppressed = [f for f in findings if f.laya_decision == Decision.SUPPRESS_FP.value]
 
     if suppressed:
         reasons.append(REASON_SUPPRESS_FP)
 
     escalate = [f for f in findings if f.laya_decision == Decision.ESCALATE_REVIEW.value]
-    if escalate and config.mode == "block":
-        # Escalate is informational unless the finding is also block-class
-        pass
+    if escalate:
+        # Informational: needs human review, does not block by itself
+        reasons.append(REASON_ESCALATE_REVIEW)
 
     # Privacy review flags (GDPR contextual — informational).
     # Strict thresholds: Art. 9 only on explicit SPECIAL_CATEGORY rule hits;
@@ -171,17 +177,16 @@ def decide(
     if privacy_flagged:
         reasons.append(REASON_FLAG_PRIVACY_REVIEW)
 
-    # Breach context: secrets + PII together, or amplifier A
+    # Breach context: credentials + personal data in the same changeset
     secrets = [f for f in findings if f.category == "secret"]
     piis = [f for f in findings if f.category == "pii"]
-    if (secrets and piis) or any(f.laya_breach_amplifier == "A" for f in findings):
-        if secrets and piis:
-            reasons.append(REASON_FLAG_BREACH_CONTEXT)
-            if config.gdpr_context_enabled() and secrets and piis:
-                privacy_notes.append(
-                    "Credentials and personal data appear in the same staged changeset "
-                    "(contextual reference: Art. 33 risk indicator if history were exposed)."
-                )
+    if secrets and piis:
+        reasons.append(REASON_FLAG_BREACH_CONTEXT)
+        if config.gdpr_context_enabled():
+            privacy_notes.append(
+                "Credentials and personal data appear in the same staged changeset "
+                "(contextual reference: Art. 33 risk indicator if history were exposed)."
+            )
 
     if secrets and any(f.laya_remediation_family == "rotate" for f in secrets):
         reasons.append(REASON_BLOCK_SECRET_ROTATE)

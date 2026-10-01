@@ -3,6 +3,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from gdprlint.analyzer import (
     LayaAnalyzer,
     RulesOnlyAnalyzer,
@@ -14,18 +16,18 @@ from tests.conftest import FakeRouter
 
 
 def make_finding(**kwargs) -> Finding:
-    base = dict(
-        rule="SECRET.API_KEY",
-        category="secret",
-        severity="high",
-        confidence="high",
-        file="src/config.js",
-        line=42,
-        message="Potential API credential detected.",
-        remediation="Move to env var.",
-        evidence="sk-****9f2a",
-        related_articles=("5.1.f", "32"),
-    )
+    base = {
+        "rule": "SECRET.API_KEY",
+        "category": "secret",
+        "severity": "high",
+        "confidence": "high",
+        "file": "src/config.js",
+        "line": 42,
+        "message": "Potential API credential detected.",
+        "remediation": "Move to env var.",
+        "evidence": "sk-****9f2a",
+        "related_articles": ("5.1.f", "32"),
+    }
     base.update(kwargs)
     return Finding(**base)
 
@@ -87,13 +89,6 @@ def test_laya_predict_failure_falls_back():
 def test_disabled_laya_reports_unavailable(tmp_path: Path, capsys):
     cfg = default_config()
     cfg.laya.enabled = False
-    # build via LayaAnalyzer directly with enabled config but simulate disabled path
-    cfg2 = default_config()
-    a = LayaAnalyzer(cfg2, router=None)
-    # force unavailable by clearing router without load success path:
-    # Instead use RulesOnly via build
-    from gdprlint.analyzer import build_analyzer
-
     an = build_analyzer(cfg)
     assert an.available is False
 
@@ -109,3 +104,16 @@ def test_state_sent_to_laya_has_no_raw_secret():
     assert "sk-redacted" in blob  # only redacted evidence
     # Ensure full original secret never present if we had one — evidence is what we pass
     assert "hunter2" not in blob
+
+
+@pytest.mark.laya_e2e
+def test_real_laya_router_predicts_end_to_end():
+    """Real local Laya checkpoint (downloads weights on first run; network needed)."""
+    cfg = default_config()
+    an = LayaAnalyzer(cfg)
+    if not an.available:
+        pytest.skip("Laya weights unavailable in this environment")
+    out = an.analyze([make_finding()])
+    assert out[0].laya_true_positive is not None
+    assert out[0].laya_confidence is not None
+    assert out[0].laya_risk is not None

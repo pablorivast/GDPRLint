@@ -8,7 +8,8 @@ contextual risk indicators only — not legal advice or compliance certification
 from __future__ import annotations
 
 import sys
-from typing import Any, Protocol, Sequence
+from collections.abc import Sequence
+from typing import Any, Protocol
 
 from gdprlint.config import Config
 from gdprlint.finding import Finding
@@ -140,7 +141,7 @@ class LayaAnalyzer:
                 if config.laya.device in {"cpu", "cuda"}:
                     kwargs["device"] = config.laya.device
                 self._router = self._load_router_silently(Router, kwargs, config)
-            except Exception as exc:  # noqa: BLE001 — degrade safely
+            except Exception as exc:  # noqa: BLE001 — degrade to rules-only mode
                 self._load_error = f"{type(exc).__name__}: {exc}"
                 self._router = None
                 return
@@ -203,7 +204,7 @@ class LayaAnalyzer:
 
         try:
             return self._predict(findings)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001 — any model error falls back safely
             print(
                 f"gdprlint: Laya predict failed ({type(exc).__name__}: {exc}); "
                 "running rules-only mode for this scan.",
@@ -232,14 +233,19 @@ class LayaAnalyzer:
         if not self.config.laya.flag_dpia_signal:
             questions.pop("dpia_signal", None)
 
+        router = self._router
+        if router is None:
+            # Defensive: analyze() guards on availability before calling here.
+            return list(findings)
+
         results: list[Any]
-        if hasattr(self._router, "predict_batch"):
-            results = self._router.predict_batch(states, questions)
+        if hasattr(router, "predict_batch"):
+            results = router.predict_batch(states, questions)
         else:
-            results = [self._router.predict(s, questions) for s in states]
+            results = [router.predict(s, questions) for s in states]
 
         out: list[Finding] = []
-        for f, res in zip(findings, results):
+        for f, res in zip(findings, results, strict=False):
             out.append(self._merge(f, res))
         return out
 

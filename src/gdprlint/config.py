@@ -196,15 +196,10 @@ def _parse_laya(raw: Any) -> LayaConfig:
     return cfg
 
 
-def load_config(start_dir: Path | None = None) -> Config:
-    """Load config from ``start_dir`` (or cwd) if present; else defaults."""
-    base = Path(start_dir) if start_dir else Path.cwd()
-    path = base / CONFIG_FILENAME
+def load_config_file(path: Path) -> Config:
+    """Load and validate an explicit ``.gdprlint.json`` file."""
     if not path.is_file():
-        cfg = default_config()
-        cfg.path = None
-        return cfg
-
+        raise ConfigError(f"config file not found: {path}")
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
@@ -261,3 +256,49 @@ def load_config(start_dir: Path | None = None) -> Config:
     cfg.gdpr_context = gdpr
 
     return cfg
+
+
+def load_config(start_dir: Path | None = None) -> Config:
+    """Load config from ``start_dir`` (or cwd) if present; else defaults."""
+    base = Path(start_dir) if start_dir else Path.cwd()
+    path = base / CONFIG_FILENAME
+    if not path.is_file():
+        cfg = default_config()
+        cfg.path = None
+        return cfg
+    return load_config_file(path)
+
+
+# Starter file written by ``gdprlint init`` — mirrors the built-in defaults
+# so behaviour does not change on adoption; edit to override.
+INIT_TEMPLATE: dict[str, Any] = {
+    "mode": "block",
+    "min_block_confidence": "high",
+    "rules": {
+        "SECRET.*": "block",
+        "PII.*": "warn",
+        "SECURITY.*": "warn",
+    },
+    "exclude": [],
+    "exclude_defaults": True,
+    "laya": {
+        "enabled": True,
+    },
+    "gdpr_context": "informational",
+}
+
+
+def write_config(path: Path, *, force: bool = False) -> Path:
+    """Write the starter ``.gdprlint.json``. Raises ConfigError if it exists."""
+    if path.exists() and not force:
+        raise ConfigError(
+            f"{path} already exists (use --force to overwrite)"
+        )
+    try:
+        path.write_text(
+            json.dumps(INIT_TEMPLATE, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        raise ConfigError(f"cannot write {path}: {exc}") from exc
+    return path

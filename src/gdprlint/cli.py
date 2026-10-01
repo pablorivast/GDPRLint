@@ -9,11 +9,17 @@ from pathlib import Path
 from typing import TextIO
 
 from gdprlint import __version__
-from gdprlint.config import ConfigError, load_config
+from gdprlint.config import (
+    CONFIG_FILENAME,
+    ConfigError,
+    load_config,
+    load_config_file,
+    write_config,
+)
 from gdprlint.engine import scan
 from gdprlint.git_ops import GitError
 from gdprlint.hook import HookError, install_hook, is_installed
-from gdprlint.reporting import render
+from gdprlint.reporting import DIVIDER, render
 
 EXIT_OK = 0
 EXIT_BLOCK = 1
@@ -58,6 +64,28 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="suppress non-essential text output (ignored for json/sarif)",
     )
+    scan_p.add_argument(
+        "--config",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="use an explicit config file instead of ./.gdprlint.json",
+    )
+    scan_p.add_argument(
+        "--no-laya",
+        action="store_true",
+        help="disable the Laya gate for this run (rules-only mode)",
+    )
+
+    init_p = sub.add_parser(
+        "init",
+        help="write a starter .gdprlint.json in the current directory",
+    )
+    init_p.add_argument(
+        "--force",
+        action="store_true",
+        help="overwrite an existing .gdprlint.json",
+    )
 
     install_p = sub.add_parser(
         "install",
@@ -84,10 +112,16 @@ def cmd_scan(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
     os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
 
     try:
-        cfg = load_config(Path.cwd())
+        if getattr(args, "config", None) is not None:
+            cfg = load_config_file(args.config)
+        else:
+            cfg = load_config(Path.cwd())
     except ConfigError as exc:
         print(f"gdprlint: config error: {exc}", file=err)
         return EXIT_ERROR
+
+    if getattr(args, "no_laya", False):
+        cfg.laya.enabled = False
 
     try:
         with warnings.catch_warnings():
@@ -117,6 +151,27 @@ def cmd_scan(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
 
     render(decision, out, fmt=fmt)
     return decision.exit_code
+
+
+def cmd_init(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
+    force = bool(getattr(args, "force", False))
+    path = Path.cwd() / CONFIG_FILENAME
+    try:
+        write_config(path, force=force)
+    except ConfigError as exc:
+        print(f"gdprlint: {exc}", file=err)
+        return EXIT_ERROR
+
+    print("GDPRLint", file=out)
+    print(DIVIDER, file=out)
+    print(file=out)
+    print(f"✓ Wrote {path}", file=out)
+    print(file=out)
+    print("Next steps:", file=out)
+    print("  • edit rules/excludes to fit your project", file=out)
+    print("  • gdprlint list-rules   # see all built-in rules", file=out)
+    print("  • gdprlint install      # enable the pre-commit hook", file=out)
+    return EXIT_OK
 
 
 def cmd_install(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
@@ -174,6 +229,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "scan":
         return cmd_scan(args, out, err)
+    if args.command == "init":
+        return cmd_init(args, out, err)
     if args.command == "install":
         return cmd_install(args, out, err)
     if args.command == "uninstall":

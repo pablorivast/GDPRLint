@@ -188,3 +188,70 @@ def test_install_force_refreshes_managed_block(git_repo: Path):
     assert "# STALE old hook text" not in refreshed
     assert "# GDPRLint pre-commit hook" in refreshed
     assert refreshed.count("# >>> gdprlint begin (managed) >>>") == 1
+
+
+def test_init_writes_starter_config(git_repo: Path):
+    code, out, _err = run_cli(["init"], git_repo)
+    assert code == 0
+    cfg_path = git_repo / ".gdprlint.json"
+    assert cfg_path.is_file()
+    data = json.loads(cfg_path.read_text(encoding="utf-8"))
+    assert data["mode"] == "block"
+    assert data["rules"]["SECRET.*"] == "block"
+    assert "list-rules" in out
+
+    # Second run without --force fails
+    code, _out, err = run_cli(["init"], git_repo)
+    assert code == 2
+    assert "already exists" in err
+
+    # --force overwrites
+    cfg_path.write_text('{"mode": "off"}', encoding="utf-8")
+    code, _out, _err = run_cli(["init", "--force"], git_repo)
+    assert code == 0
+    data = json.loads(cfg_path.read_text(encoding="utf-8"))
+    assert data["mode"] == "block"
+
+
+def test_init_template_loads_with_defaults(git_repo: Path):
+    from gdprlint.config import load_config
+
+    run_cli(["init"], git_repo)
+    cfg = load_config(git_repo)
+    assert cfg.mode == "block"
+    assert cfg.action_for_rule("SECRET.API_KEY") == "block"
+    assert cfg.action_for_rule("PII.EMAIL") == "warn"
+
+
+def test_scan_no_laya_forces_rules_only(git_repo: Path):
+    stage_file(git_repo, "app.js", "eval(user_controlled);\n")
+    code, out, _err = run_cli(["scan", "--no-laya"], git_repo)
+    assert code == 0
+    assert "rules-only" in out
+
+
+def test_scan_explicit_config_overrides_defaults(git_repo: Path):
+    stage_file(
+        git_repo,
+        "src/config.js",
+        'const key = "sk-proj-abcDEF1234567890xyzXYZ9f2a";\n',
+    )
+    # Without config: blocked
+    code, _out, _err = run_cli(["scan"], git_repo)
+    assert code == 1
+
+    # Explicit config disables all secret rules → allowed
+    alt = git_repo / "custom-config.json"
+    alt.write_text('{"rules": {"SECRET.*": "off"}}', encoding="utf-8")
+    code, out, _err = run_cli(["scan", "--config", str(alt)], git_repo)
+    assert code == 0
+    assert "Commit allowed." in out
+
+
+def test_scan_config_missing_file_errors(git_repo: Path):
+    stage_file(git_repo, "x.py", "print('ok')\n")
+    missing = git_repo / "nope.json"
+    code, _out, err = run_cli(["scan", "--config", str(missing)], git_repo)
+    assert code == 2
+    assert "config error" in err
+    assert "not found" in err

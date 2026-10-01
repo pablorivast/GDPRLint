@@ -78,6 +78,12 @@ PII confidence tiers: `possible` · `likely` · `high`. Names are **not** detect
 Requires Python ≥ 3.10 and Git.
 
 ```bash
+pip install gdprlint
+```
+
+From source (development):
+
+```bash
 git clone <this-repo>
 cd gdprlint
 python3 -m venv .venv
@@ -88,6 +94,21 @@ gdprlint --version
 ```
 
 > **First Laya load:** the decisor uses local weights from Hugging Face (`pip` dependency `laya`). The first predict may download a checkpoint (~hundreds of MB). If the network or model is unavailable, GDPRLint **falls back to rules-only mode** and still blocks high-confidence secrets.
+
+### As a pre-commit hook
+
+With the [pre-commit framework](https://pre-commit.com):
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/pablorivast/GDPRLint
+    rev: v0.3.0
+    hooks:
+      - id: gdprlint
+```
+
+Or manage the hook yourself: `gdprlint init && gdprlint install`.
 
 ## Usage
 
@@ -343,6 +364,8 @@ and how to add a rule. Notable changes are tracked in
 ## Contributing
 
 Issues and PRs welcome. Keep the project **local-first**, **deterministic by default**, and free of hard dependencies on any single coding agent.
+
+To report a vulnerability, see [SECURITY.md](SECURITY.md) — please use private reporting, not public issues.
 
 ## License
 

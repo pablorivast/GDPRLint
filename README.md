@@ -10,9 +10,10 @@
 
 <p align="center">
   <img alt="version" src="https://img.shields.io/badge/version-0.2.0-2563eb"/>
+  <img alt="ci" src="https://github.com/pablorivast/GDPRLint/actions/workflows/ci.yml/badge.svg"/>
   <img alt="license" src="https://img.shields.io/badge/license-Apache--2.0-green"/>
   <img alt="python" src="https://img.shields.io/badge/python-%E2%89%A53.10-3776ab"/>
-  <img alt="tests" src="https://img.shields.io/badge/tests-136%20passing-brightgreen"/>
+  <img alt="tests" src="https://img.shields.io/badge/tests-148%20passing-brightgreen"/>
   <img alt="status" src="https://img.shields.io/badge/status-alpha-orange"/>
   <img alt="local-first" src="https://img.shields.io/badge/local-first-purple"/>
 </p>
@@ -103,6 +104,15 @@ Manual scan:
 
 ```bash
 gdprlint scan
+```
+
+Machine-readable reports (CI / code scanning):
+
+```bash
+gdprlint scan --format json            # stable JSON schema (gdprlint/report/v1)
+gdprlint scan --format sarif           # SARIF 2.1.0 (GitHub code scanning)
+gdprlint scan --format json --output gdprlint-report.json
+gdprlint install --force               # refresh an outdated managed hook block
 ```
 
 Exit codes:
@@ -206,9 +216,17 @@ Rule ID shape: `SECRET.*` · `PII.*` · `SECURITY.*`.
 
 ```bash
 pip install -e ".[dev]"
-pytest
-pytest -m "not laya_e2e"   # skip tests that load real weights
+pytest                          # full suite + coverage (fails below 78%)
+pytest -m "not laya_e2e"        # skip tests that load real weights (what CI runs)
+pytest -m laya_e2e              # optional: run against the real Laya checkpoint
+
+ruff check .                    # lint
+mypy                            # type check (src/)
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow, commit style
+and how to add a rule. Notable changes are tracked in
+[CHANGELOG.md](CHANGELOG.md).
 
 ## Limitations
 

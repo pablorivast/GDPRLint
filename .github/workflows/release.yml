@@ -1,0 +1,69 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build & verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install build tooling
+        run: pip install build twine
+      - name: Build sdist and wheel
+        run: python -m build
+      - name: Check metadata
+        run: twine check --strict dist/*
+      - name: Tag must match the package version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          for artifact in dist/*; do
+            case "$artifact" in
+              *-"$TAG"-*|*-"$TAG".*) ;;
+              *) echo "Tag $GITHUB_REF_NAME does not match $artifact"; exit 1 ;;
+            esac
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/gdprlint
+    permissions:
+      id-token: write # trusted publishing (no long-lived token)
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    name: GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Create release with artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --generate-notes --verify-tag

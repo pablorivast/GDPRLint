@@ -5,6 +5,7 @@ import os
 import subprocess
 from pathlib import Path
 
+from gdprlint import __version__
 from gdprlint.cli import main
 from tests.conftest import run_cli, stage_file
 
@@ -16,7 +17,7 @@ def test_version_flag(capsys):
         assert e.code == 0
     captured = capsys.readouterr()
     assert "gdprlint" in captured.out
-    assert "0.2.0" in captured.out
+    assert __version__ in captured.out
 
 
 def test_help_when_no_command(capsys):

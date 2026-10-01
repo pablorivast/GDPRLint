@@ -8,8 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-01
+
 ### Added
 
+- pre-commit framework support: `.pre-commit-hooks.yaml` exposing the
+  `gdprlint` hook (`repos:` snippet in the README).
+- `SECURITY.md` — private vulnerability reporting via GitHub Security Advisories.
+- Release automation: `v*` tags build and verify the package, publish to PyPI
+  via trusted publishing (OIDC) and create a GitHub release with artifacts;
+  Dependabot keeps Actions and pip dependencies fresh.
 - Custom rules: `custom_rules` in `.gdprlint.json` defines project-specific
   regex detections (`id`, `pattern`, optional `flags`/`category`/`action`/
   `severity`/`confidence`/`message`/`remediation`/`articles`). Invalid
@@ -47,6 +55,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The package version is single-sourced from `gdprlint.__version__`
+  (dynamic in `pyproject.toml`) and packaging metadata follows PEP 639
+  (SPDX license expression, `project.urls`); `py.typed` (PEP 561) is
+  verified to ship with the wheel.
 - CI: GitHub Actions workflow (Ruff, mypy, pytest on Python 3.10–3.13 with
   coverage fail-under 78%).
 - Tooling: Ruff and mypy configured in `pyproject.toml` and enabled as `dev`

@@ -9,11 +9,11 @@
 </p>
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-0.2.0-2563eb"/>
+  <img alt="version" src="https://img.shields.io/badge/version-0.3.0-2563eb"/>
   <img alt="ci" src="https://github.com/pablorivast/GDPRLint/actions/workflows/ci.yml/badge.svg"/>
   <img alt="license" src="https://img.shields.io/badge/license-Apache--2.0-green"/>
   <img alt="python" src="https://img.shields.io/badge/python-%E2%89%A53.10-3776ab"/>
-  <img alt="tests" src="https://img.shields.io/badge/tests-148%20passing-brightgreen"/>
+  <img alt="tests" src="https://img.shields.io/badge/tests-209%20passing-brightgreen"/>
   <img alt="status" src="https://img.shields.io/badge/status-alpha-orange"/>
   <img alt="local-first" src="https://img.shields.io/badge/local-first-purple"/>
 </p>

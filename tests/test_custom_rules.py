@@ -185,7 +185,8 @@ def test_run_scanners_includes_custom_rules(tmp_path: Path):
                     "pattern": r"tok_[A-Za-z0-9]{32}",
                     "action": "block",
                 }
-            ]
+            ],
+            "plugins": False,
         },
     )
     diff = StagedDiff(

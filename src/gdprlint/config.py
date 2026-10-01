@@ -99,6 +99,7 @@ class Config:
     laya: LayaConfig = field(default_factory=LayaConfig)
     gdpr_context: str = "informational"
     custom_rules: list[CustomRule] = field(default_factory=list)
+    plugins: bool = True
     path: Path | None = None
 
     # Defaults when no config file / no matching rule.
@@ -393,6 +394,11 @@ def load_config_file(path: Path) -> Config:
 
     cfg.custom_rules = _parse_custom_rules(raw.get("custom_rules"))
 
+    if "plugins" in raw:
+        if not isinstance(raw["plugins"], bool):
+            raise ConfigError("'plugins' must be a boolean")
+        cfg.plugins = raw["plugins"]
+
     return cfg
 
 
@@ -424,6 +430,7 @@ INIT_TEMPLATE: dict[str, Any] = {
     },
     "gdpr_context": "informational",
     "custom_rules": [],
+    "plugins": True,
 }
 
 

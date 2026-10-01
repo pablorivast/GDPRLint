@@ -42,8 +42,12 @@ def _has_markers(content: str) -> bool:
     return BEGIN_MARK in content and END_MARK in content
 
 
-def install_hook(cwd: Path | None = None) -> Path:
-    """Install pre-commit hook in the current repository (idempotent)."""
+def install_hook(cwd: Path | None = None, *, force: bool = False) -> Path:
+    """Install pre-commit hook in the current repository (idempotent).
+
+    With ``force=True`` the managed block is replaced even if already present;
+    foreign hook content outside the markers is always preserved.
+    """
     try:
         ensure_repo(cwd)
         hook_dir = hooks_path(cwd)
@@ -60,19 +64,33 @@ def install_hook(cwd: Path | None = None) -> Path:
     if hook_path.exists():
         content = hook_path.read_text(encoding="utf-8", errors="replace")
         if _has_markers(content):
-            # Already installed — leave as-is (idempotent)
-            _ensure_executable(hook_path)
-            return hook_path
-        # Append managed block without destroying existing hook
-        new_content = content.rstrip() + "\n\n" + HOOK_BODY
-        if not new_content.endswith("\n"):
-            new_content += "\n"
-        hook_path.write_text(new_content, encoding="utf-8")
+            if not force:
+                # Already installed — leave as-is (idempotent)
+                _ensure_executable(hook_path)
+                return hook_path
+            content = _replace_block(content)
+            hook_path.write_text(content, encoding="utf-8")
+        else:
+            # Append managed block without destroying existing hook
+            new_content = content.rstrip() + "\n\n" + HOOK_BODY
+            if not new_content.endswith("\n"):
+                new_content += "\n"
+            hook_path.write_text(new_content, encoding="utf-8")
     else:
         hook_path.write_text("#!/bin/sh\n\n" + HOOK_BODY, encoding="utf-8")
 
     _ensure_executable(hook_path)
     return hook_path
+
+
+def _replace_block(content: str) -> str:
+    """Swap the existing managed block for the current HOOK_BODY."""
+    begin = content.index(BEGIN_MARK)
+    end = content.index(END_MARK) + len(END_MARK)
+    head = content[:begin].rstrip("\n")
+    tail = content[end:].lstrip("\n")
+    parts = [part for part in (head, HOOK_BODY.strip("\n"), tail) if part]
+    return "\n\n".join(parts) + "\n"
 
 
 def uninstall_hook(cwd: Path | None = None) -> bool:

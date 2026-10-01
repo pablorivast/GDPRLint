@@ -31,6 +31,27 @@ def test_install_idempotent(git_repo: Path):
     assert c2.count(BEGIN_MARK) == 1
 
 
+def test_install_force_replaces_block_keeps_foreign_content(git_repo: Path):
+    hooks = git_repo / ".git" / "hooks"
+    hooks.mkdir(parents=True, exist_ok=True)
+    existing = hooks / "pre-commit"
+    existing.write_text("#!/bin/sh\necho custom-hook\n", encoding="utf-8")
+    path = install_hook(git_repo)
+    # Corrupt the managed block as if written by an older version
+    content = path.read_text(encoding="utf-8").replace(
+        "# GDPRLint pre-commit hook", "# OLD stale text"
+    )
+    path.write_text(content, encoding="utf-8")
+
+    forced = install_hook(git_repo, force=True)
+    final = forced.read_text(encoding="utf-8")
+    assert "# OLD stale text" not in final
+    assert "# GDPRLint pre-commit hook" in final
+    assert final.count(BEGIN_MARK) == 1
+    assert "echo custom-hook" in final
+    assert final.index("echo custom-hook") < final.index(BEGIN_MARK)
+
+
 def test_install_appends_to_existing_hook(git_repo: Path):
     hooks = git_repo / ".git" / "hooks"
     hooks.mkdir(parents=True, exist_ok=True)

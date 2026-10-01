@@ -66,7 +66,7 @@ def build_parser() -> argparse.ArgumentParser:
     install_p.add_argument(
         "--force",
         action="store_true",
-        help="re-append managed block even if markers already exist (no-op if present)",
+        help="replace the managed block even if already installed (keeps foreign hooks)",
     )
 
     sub.add_parser("uninstall", help="remove the managed pre-commit block")
@@ -121,8 +121,9 @@ def cmd_scan(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
 
 def cmd_install(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
     already = is_installed(Path.cwd())
+    force = bool(getattr(args, "force", False))
     try:
-        path = install_hook(Path.cwd())
+        path = install_hook(Path.cwd(), force=force)
     except HookError as exc:
         print(f"gdprlint: {exc}", file=err)
         return EXIT_ERROR
@@ -133,8 +134,10 @@ def cmd_install(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
     print("GDPRLint", file=out)
     print("────────────────────────────────────────", file=out)
     print(file=out)
-    if already:
+    if already and not force:
         print(f"✓ Hook already installed: {path}", file=out)
+    elif already:
+        print(f"✓ Hook refreshed: {path}", file=out)
     else:
         print(f"✓ Pre-commit hook installed: {path}", file=out)
     print(file=out)

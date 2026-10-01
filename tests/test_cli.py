@@ -170,3 +170,21 @@ def test_scan_output_unwritable_path_errors(git_repo: Path):
     )
     assert code == 2
     assert "cannot write report" in err
+
+
+def test_install_force_refreshes_managed_block(git_repo: Path):
+    code, out, _err = run_cli(["install"], git_repo)
+    assert code == 0
+    hook = git_repo / ".git" / "hooks" / "pre-commit"
+    content = hook.read_text(encoding="utf-8")
+    # Simulate a stale managed block from an older version
+    stale = content.replace("# GDPRLint pre-commit hook", "# STALE old hook text")
+    hook.write_text(stale, encoding="utf-8")
+
+    code, out, _err = run_cli(["install", "--force"], git_repo)
+    assert code == 0
+    assert "refreshed" in out.lower()
+    refreshed = hook.read_text(encoding="utf-8")
+    assert "# STALE old hook text" not in refreshed
+    assert "# GDPRLint pre-commit hook" in refreshed
+    assert refreshed.count("# >>> gdprlint begin (managed) >>>") == 1

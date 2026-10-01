@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `gdprlint scan --all` no longer requires a git repository: it walks the
+  worktree directly (new dependency `pathspec` for gitignore semantics),
+  starting at the nearest ancestor containing `.git` or, without one, the
+  current directory. Root and nested `.gitignore` files are honored with
+  git precedence rules (negations and deeper overrides included).
+  Behavior changes: `.git/info/exclude` and global excludes are no longer
+  consulted, and tracked files that a `.gitignore` matches are now skipped.
+  Output order is now deterministically sorted by path.
+
 ## [0.3.0] - 2026-10-01
 
 ### Added

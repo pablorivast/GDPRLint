@@ -130,7 +130,7 @@ gdprlint scan
 gdprlint scan --quiet                 # only print when the commit would block
 gdprlint scan --no-laya               # rules-only, skip the model gate
 gdprlint scan --config path/to.json   # explicit config file
-gdprlint scan --all                   # whole worktree: tracked + untracked (non-ignored)
+gdprlint scan --all                   # whole worktree, .gitignore honored (works without git too)
 gdprlint scan --history main~3..main  # lines added across a git revision range
 ```
 
@@ -159,11 +159,16 @@ Scan modes:
 | Mode | Input |
 |---|---|
 | *(default)* | added lines of `git diff --cached` |
-| `--all` | every tracked and untracked non-ignored file (binary and >1 MiB files are skipped) |
+| `--all` | every non-ignored file in the worktree; root and nested `.gitignore` honored, works without git (binary and >1 MiB files are skipped) |
 | `--history RANGE` | added lines across a revision range, e.g. `main~3..main` |
 
 `--all` and `--history` are mutually exclusive; the selected mode is reported as
 `mode` in the JSON/SARIF report.
+
+`--all` does not require a git repository: it starts at the nearest ancestor
+directory containing `.git` (or the current directory when there is none) and
+walks it with gitignore rules. Outside a repository only `--all` works; the
+default staged mode and `--history` still exit `2`.
 
 ## How the Git hook works
 
@@ -357,7 +362,8 @@ and how to add a rule. Notable changes are tracked in
 - Pattern-based, line-oriented — **not** a full SAST or data-flow analyzer  
 - Special-category and phone/DNI heuristics can false-positive; confidence tiers + exceptions mitigate  
 - Laya base checkpoints are not magic: gated by `min_confidence`; uncertain findings become **review flags**, not silent passes  
-- Binary staged files are not content-scanned; `--all` also skips binaries and files over 1 MiB  
+- Binary staged files are not content-scanned; `--all` also skips binaries and files over 1 MiB  
+- `--all` honors `.gitignore` files only — not `.git/info/exclude`, global git excludes or `.ignore` files  
 - No name detection (deliberate)  
 - **Does not** implement multi-jurisdiction privacy law automatically  
 

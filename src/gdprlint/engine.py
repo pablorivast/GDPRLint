@@ -22,7 +22,7 @@ from gdprlint.finding import (
     Finding,
     confidence_rank,
 )
-from gdprlint.git_ops import StagedDiff, get_staged_diff
+from gdprlint.git_ops import StagedDiff, get_range_diff, get_staged_diff, get_worktree_diff
 from gdprlint.scanners import default_scanners
 
 
@@ -118,6 +118,7 @@ def decide(
     *,
     files_scanned: int,
     laya_available: bool,
+    mode: str = "staged",
 ) -> CommitDecision:
     reasons: list[str] = []
     privacy_notes: list[str] = []
@@ -218,6 +219,7 @@ def decide(
         findings=list(findings),
         files_scanned=files_scanned,
         laya_available=laya_available,
+        mode=mode,
     )
 
 
@@ -227,11 +229,23 @@ def scan(
     config: Config | None = None,
     analyzer: Analyzer | None = None,
     diff: StagedDiff | None = None,
+    mode: str = "staged",
+    rev_range: str | None = None,
 ) -> CommitDecision:
-    """Full pipeline for ``gdprlint scan``."""
+    """Full pipeline for ``gdprlint scan``.
+
+    ``mode`` selects the input: ``staged`` (default), ``all`` (every tracked
+    and untracked non-ignored file) or ``history`` (added lines across
+    ``rev_range``).
+    """
     cfg = config if config is not None else load_config(cwd)
     if diff is None:
-        diff = get_staged_diff(cwd)
+        if mode == "all":
+            diff = get_worktree_diff(cwd, is_excluded=cfg.is_excluded)
+        elif mode == "history":
+            diff = get_range_diff(cwd, rev_range or "")
+        else:
+            diff = get_staged_diff(cwd)
 
     raw_findings, files_scanned = run_scanners(diff, cfg)
 
@@ -244,4 +258,5 @@ def scan(
         cfg,
         files_scanned=files_scanned,
         laya_available=getattr(an, "available", False),
+        mode=mode,
     )

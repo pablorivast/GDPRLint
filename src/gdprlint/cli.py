@@ -78,6 +78,19 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="disable the Laya gate for this run (rules-only mode)",
     )
+    mode_group = scan_p.add_mutually_exclusive_group()
+    mode_group.add_argument(
+        "--all",
+        dest="scan_all",
+        action="store_true",
+        help="scan every tracked and untracked (non-ignored) file instead of staged changes",
+    )
+    mode_group.add_argument(
+        "--history",
+        metavar="RANGE",
+        default=None,
+        help="scan lines added across a git revision range (e.g. main~3..main)",
+    )
 
     init_p = sub.add_parser(
         "init",
@@ -137,10 +150,18 @@ def cmd_scan(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
     if getattr(args, "no_laya", False):
         cfg.laya.enabled = False
 
+    mode = "staged"
+    rev_range = None
+    if getattr(args, "scan_all", False):
+        mode = "all"
+    elif getattr(args, "history", None):
+        mode = "history"
+        rev_range = args.history
+
     try:
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", message=r".*invalid temperatures.*")
-            decision = scan(Path.cwd(), config=cfg)
+            decision = scan(Path.cwd(), config=cfg, mode=mode, rev_range=rev_range)
     except GitError as exc:
         print(f"gdprlint: git error: {exc}", file=err)
         return EXIT_ERROR

@@ -114,3 +114,4 @@ class CommitDecision:
     findings: list[Finding] = field(default_factory=list)
     files_scanned: int = 0
     laya_available: bool = False
+    mode: str = "staged"  # staged | all | history

@@ -35,3 +35,13 @@ def test_py_typed_ships_with_the_package():
     assert (Path(gdprlint.__file__).with_name("py.typed")).is_file()
     text = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     assert 'gdprlint = ["py.typed"]' in text
+
+
+def test_project_metadata_is_release_ready():
+    text = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    # PEP 639 SPDX expression instead of the deprecated table form
+    assert 'license = "Apache-2.0"' in text
+    assert "license = { text" not in text
+    assert "[project.urls]" in text
+    assert "Repository =" in text
+    assert "Changelog =" in text

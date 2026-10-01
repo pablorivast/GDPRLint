@@ -2,12 +2,11 @@
 
 from pathlib import Path
 
-from gdprlint.analyzer import RulesOnlyAnalyzer
-from gdprlint.config import default_config, load_config
+from gdprlint.analyzer import LayaAnalyzer, RulesOnlyAnalyzer
+from gdprlint.config import default_config
 from gdprlint.engine import scan
 from gdprlint.finding import Decision
 from tests.conftest import FakeRouter
-from gdprlint.analyzer import LayaAnalyzer
 
 
 def _cfg_secret_block():
@@ -84,7 +83,9 @@ def test_exception_suppresses_specific_finding(git_repo: Path, stage):
     an = LayaAnalyzer(cfg, router=FakeRouter())
     decision = scan(git_repo, config=cfg, analyzer=an)
     # exception filters at scanner stage — finding should be gone
-    assert not any(f.rule == "PII.EMAIL" and f.file == "fixtures/email.md" for f in decision.findings)
+    assert not any(
+        f.rule == "PII.EMAIL" and f.file == "fixtures/email.md" for f in decision.findings
+    )
     assert decision.exit_code == 0
 
 
@@ -149,7 +150,7 @@ def test_gdpr_context_off_strips_notes(git_repo: Path, stage):
 
 def test_art9_only_on_special_category_rule(git_repo: Path, stage):
     """Laya data_nature=C alone must not emit Art. 9 note."""
-    from gdprlint.finding import Finding, Category
+    from gdprlint.finding import Category, Finding
 
     cfg = _cfg_secret_block()
     # Standalone decide() call — bypass scanners
@@ -173,8 +174,8 @@ def test_art9_only_on_special_category_rule(git_repo: Path, stage):
 
 
 def test_art9_on_special_category_rule(git_repo: Path, stage):
-    from gdprlint.finding import Finding, Category
     from gdprlint.engine import decide
+    from gdprlint.finding import Category, Finding
 
     cfg = _cfg_secret_block()
     f = Finding(
@@ -195,8 +196,8 @@ def test_art9_on_special_category_rule(git_repo: Path, stage):
 
 
 def test_art35_requires_strong_pii_with_dpia(git_repo: Path, stage):
-    from gdprlint.finding import Finding, Category
     from gdprlint.engine import decide
+    from gdprlint.finding import Category, Finding
 
     cfg = _cfg_secret_block()
     weak = Finding(

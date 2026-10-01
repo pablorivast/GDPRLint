@@ -61,7 +61,6 @@ def mask_digits(value: str) -> str:
     visible_tail = "".join(alnum[-4:])
     # Rebuild: mask all but last 4 alnum
     out = []
-    remaining = 4
     for i, c in enumerate(value):
         if c.isalnum():
             # count from end

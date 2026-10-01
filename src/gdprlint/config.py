@@ -55,9 +55,7 @@ class ExceptionRule:
             return False
         if not fnmatch.fnmatch(finding_file, self.file) and finding_file != self.file:
             return False
-        if self.line is not None and self.line != finding_line:
-            return False
-        return True
+        return self.line is None or self.line == finding_line
 
 
 @dataclass
@@ -99,10 +97,9 @@ class Config:
         best_pattern = ""
         best_action = ""
         for pattern, action in self.rules.items():
-            if fnmatch.fnmatch(rule, pattern):
-                if len(pattern) > len(best_pattern):
-                    best_pattern = pattern
-                    best_action = action
+            if fnmatch.fnmatch(rule, pattern) and len(pattern) > len(best_pattern):
+                best_pattern = pattern
+                best_action = action
         if best_pattern:
             return best_action
         # Built-in defaults
@@ -128,25 +125,17 @@ class Config:
         if fnmatch.fnmatch(normalized, pattern):
             return True
         # Also match basename-style patterns against full path segments
-        if "/" not in pattern and fnmatch.fnmatch(normalized.split("/")[-1], pattern):
-            return True
-        return False
+        return "/" not in pattern and fnmatch.fnmatch(normalized.split("/")[-1], pattern)
 
     def is_excluded(self, path: str) -> bool:
         normalized = path.replace("\\", "/")
         patterns = list(self.exclude)
         if self.exclude_defaults:
             patterns = DEFAULT_EXCLUDE + patterns
-        for pattern in patterns:
-            if self._match_exclude(normalized, pattern):
-                return True
-        return False
+        return any(self._match_exclude(normalized, pattern) for pattern in patterns)
 
     def is_excepted(self, rule: str, file: str, line: int) -> bool:
-        for exc in self.exceptions:
-            if exc.matches(rule, file, line):
-                return True
-        return False
+        return any(exc.matches(rule, file, line) for exc in self.exceptions)
 
     def gdpr_context_enabled(self) -> bool:
         return self.gdpr_context != "off" and self.laya.show_gdpr_context

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from gdprlint.config import Config, ConfigError, default_config, load_config
+from gdprlint.config import ConfigError, default_config, load_config
 
 
 def test_default_config_actions():

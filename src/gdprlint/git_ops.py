@@ -101,7 +101,7 @@ def parse_staged_diff(raw: str) -> StagedDiff:
             i += 1
             continue
 
-        if line.startswith("Binary files ") or line.startswith("GIT binary patch"):
+        if line.startswith(("Binary files ", "GIT binary patch")):
             # Path often appears as: Binary files a/x and b/x differ
             path = _path_from_binary_header(line)
             if path and path not in result.binary_files:

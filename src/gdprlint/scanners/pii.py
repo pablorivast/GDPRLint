@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Sequence
+from collections.abc import Sequence
 
 from gdprlint.finding import Category, Confidence, Finding, Severity
 from gdprlint.redact import mask_digits, redact_email, redact_generic
@@ -75,7 +75,10 @@ SSN_US = re.compile(r"(?<!\d)\d{3}-\d{2}-\d{4}(?!\d)")
 NHS_UK = re.compile(r"(?<!\d)\d{3}[ -]\d{3}[ -]\d{4}(?!\d)")
 CPF_BR = re.compile(r"(?<!\d)\d{3}\.\d{3}\.\d{3}-\d{2}(?!\d)")
 
-IPV4 = re.compile(r"(?<![\d.])(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)(?![\d.])")
+IPV4 = re.compile(
+    r"(?<![\d.])(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}"
+    r"(?:25[0-5]|2[0-4]\d|1?\d?\d)(?![\d.])"
+)
 IPV6 = re.compile(
     r"\b(?:[A-Fa-f0-9]{1,4}:){2,7}[A-Fa-f0-9]{1,4}\b"
     r"|\b(?:[A-Fa-f0-9]{1,4}:){1,7}:\b"
@@ -201,22 +204,18 @@ def _is_placeholder_email(email: str) -> bool:
         return True
     if local in _EMAIL_PLACEHOLDER_LOCALS:
         return True
-    if local.startswith("tucorreo") or local.startswith("your"):
+    if local.startswith(("tucorreo", "your")):
         return True
     if "noreply" in domain or "no-reply" in domain:
         return True
-    if domain.endswith(".example") or domain.endswith(".test") or domain.endswith(".invalid"):
-        return True
-    return False
+    return domain.endswith((".example", ".test", ".invalid"))
 
 
 def _is_comment_line(text: str) -> bool:
     stripped = text.lstrip()
-    if stripped.startswith("#") or stripped.startswith("//") or stripped.startswith("--"):
+    if stripped.startswith(("#", "//", "--")):
         return True
-    if stripped.startswith("/*") or stripped.startswith("*"):
-        return True
-    return False
+    return stripped.startswith(("/*", "*"))
 
 
 def _luhn_ok(num: str) -> bool:
@@ -225,12 +224,13 @@ def _luhn_ok(num: str) -> bool:
         return False
     total = 0
     parity = len(digits) % 2
-    for i, d in enumerate(digits):
+    for i, digit in enumerate(digits):
+        value = digit
         if i % 2 == parity:
-            d *= 2
-            if d > 9:
-                d -= 9
-        total += d
+            value *= 2
+            if value > 9:
+                value -= 9
+        total += value
     return total % 10 == 0
 
 
@@ -265,7 +265,11 @@ class PIIScanner(Scanner):
                     "Potential email address detected.",
                     "Avoid committing real personal emails; use fixtures or omit.",
                     confidence=conf,
-                    severity=Severity.MEDIUM.value if conf == Confidence.HIGH.value else Severity.LOW.value,
+                    severity=(
+                        Severity.MEDIUM.value
+                        if conf == Confidence.HIGH.value
+                        else Severity.LOW.value
+                    ),
                     evidence=redact_email(m.group(0)),
                 )
             )
@@ -312,7 +316,7 @@ class PIIScanner(Scanner):
                 continue
             if not _luhn_ok(digits):
                 continue
-            # Skip if it looks like a timestamp-only long digit run without separators and not card prefix
+            # Skip digit runs that look like timestamps (no separators, no card prefix)
             findings.append(
                 _pii(
                     "PII.CREDIT_CARD",
@@ -473,10 +477,13 @@ class PIIScanner(Scanner):
             raw = m.group(0)
             if "sha" in raw.lower() and "integrity" in text.lower():
                 continue
-            if re.search(r"(?i)\bintegrity\b", text) and "sha" in text.lower():
-                # npm integrity lines
-                if "sha512" in text.lower() or "sha1" in text.lower():
-                    continue
+            # npm integrity lines: hash-only runs are not phone numbers
+            if (
+                re.search(r"(?i)\bintegrity\b", text)
+                and "sha" in text.lower()
+                and ("sha512" in text.lower() or "sha1" in text.lower())
+            ):
+                continue
             digits = re.sub(r"\D", "", raw)
             if len(digits) < 9 or len(digits) > 15:
                 continue
@@ -511,7 +518,11 @@ class PIIScanner(Scanner):
                     "Potential telephone number detected.",
                     "Avoid committing personal phone numbers; use synthetic fixtures.",
                     confidence=conf,
-                    severity=Severity.MEDIUM.value if conf != Confidence.POSSIBLE.value else Severity.LOW.value,
+                    severity=(
+                        Severity.MEDIUM.value
+                        if conf != Confidence.POSSIBLE.value
+                        else Severity.LOW.value
+                    ),
                     evidence=mask_digits(raw),
                 )
             )
@@ -569,7 +580,8 @@ class PIIScanner(Scanner):
                     file,
                     line_no,
                     "Potential MAC address detected.",
-                    "Device identifiers may be personal data in some contexts; use synthetic values.",
+                    "Device identifiers may be personal data in some contexts; "
+                    "use synthetic values.",
                     confidence=Confidence.LIKELY.value,
                     severity=Severity.LOW.value,
                     evidence=redact_generic(m.group(0), 2, 2),
@@ -618,7 +630,10 @@ class PIIScanner(Scanner):
         # License plate ES with keyword nearby (reduce FPs)
         for m in LICENSE_PLATE_ES.finditer(text):
             near = _context_near(text, m.start())
-            if re.search(r"(?i)\b(?:matr[ií]cula|license\s+plate|plate\s+number|veh[ií]culo)\b", near):
+            if re.search(
+                r"(?i)\b(?:matr[ií]cula|license\s+plate|plate\s+number|veh[ií]culo)\b",
+                near,
+            ):
                 findings.append(
                     _pii(
                         "PII.LICENSE_PLATE_ES",
@@ -678,8 +693,10 @@ class PIIScanner(Scanner):
                             "PII.SPECIAL_CATEGORY",
                             file,
                             line_no,
-                            "Potential special-category personal data signal (health/biometric context).",
-                            "Special-category data needs strict necessity, security and possibly a DPIA review.",
+                            "Potential special-category personal data signal "
+                            "(health/biometric context).",
+                            "Special-category data needs strict necessity, security "
+                            "and possibly a DPIA review.",
                             confidence=Confidence.LIKELY.value,
                             severity=Severity.HIGH.value,
                             evidence=redact_generic(id_hit.group(0), 4, 4),

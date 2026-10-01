@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -16,7 +17,7 @@ def _git(repo: Path, *args: str) -> str:
         text=True,
         check=True,
         env={
-            **dict(**{k: v for k, v in __import__("os").environ.items()}),
+            **os.environ,
             "GIT_AUTHOR_NAME": "Test",
             "GIT_AUTHOR_EMAIL": "test@example.com",
             "GIT_COMMITTER_NAME": "Test",

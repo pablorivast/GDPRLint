@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Sequence
+from collections.abc import Sequence
 
 from gdprlint.finding import Category, Confidence, Finding, Severity
 from gdprlint.redact import redact_secret
@@ -49,7 +49,8 @@ _RULES: list[tuple[str, re.Pattern[str], str, str, str, str]] = [
         "SECRET.AWS_ACCESS_KEY",
         re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"),
         "Potential AWS access key detected.",
-        "Remove the key and load credentials from the environment or an AWS secret store; rotate if it was ever committed.",
+        "Remove the key and load credentials from the environment "
+        "or an AWS secret store; rotate if it was ever committed.",
         Severity.CRITICAL.value,
         Confidence.HIGH.value,
     ),

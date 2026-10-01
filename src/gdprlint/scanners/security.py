@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Sequence
+from collections.abc import Sequence
 
 from gdprlint.finding import Category, Confidence, Finding, Severity
 from gdprlint.redact import redact_generic
@@ -88,7 +88,9 @@ _LOCALSTORAGE_SECRET = re.compile(
     r"[^;]{0,200}?"
     r"\b(?:password|passwd|pass|pwd|token|secret|credential|auth_data)\b"
 )
-_DEBUG_TRUE = re.compile(r"(?i)\b(?:debug|flask_debug|django_debug)\s*=\s*True\b|\bdebug\s*:\s*true\b")
+_DEBUG_TRUE = re.compile(
+    r"(?i)\b(?:debug|flask_debug|django_debug)\s*=\s*True\b|\bdebug\s*:\s*true\b"
+)
 _WEAK_RANDOM = re.compile(
     r"(?i)(?:Math\.random|random\.(?:random|randint))\s*\([^)]*\).{0,40}?"
     r"(?:token|secret|password|session|key)|(?:token|secret|password|session|key).{0,40}?"
@@ -129,7 +131,7 @@ class SecurityScanner(Scanner):
         ext = self._ext(file)
         stripped = text.strip()
         # Skip comment-only lines for some rules (heuristic)
-        is_comment = stripped.startswith("#") or stripped.startswith("//")
+        is_comment = stripped.startswith(("#", "//"))
 
         def maybe(
             rule: str,
@@ -262,7 +264,8 @@ class SecurityScanner(Scanner):
             "SECURITY.LOCALSTORAGE_SECRET",
             _LOCALSTORAGE_SECRET,
             "Credential or token stored in browser localStorage/sessionStorage.",
-            "Do not persist passwords or long-lived tokens in web storage; use memory or httpOnly cookies.",
+            "Do not persist passwords or long-lived tokens in web storage; "
+            "use memory or httpOnly cookies.",
             confidence=Confidence.HIGH.value,
             severity=Severity.HIGH.value,
             skip_comment=False,

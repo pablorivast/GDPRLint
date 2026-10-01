@@ -8,9 +8,9 @@ from gdprlint.scanners.secrets import SecretScanner
 from gdprlint.scanners.security import SecurityScanner
 
 __all__ = [
+    "PIIScanner",
     "Scanner",
     "SecretScanner",
-    "PIIScanner",
     "SecurityScanner",
     "default_scanners",
 ]

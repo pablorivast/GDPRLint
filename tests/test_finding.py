@@ -11,18 +11,18 @@ from gdprlint.finding import (
 
 
 def make(**kwargs) -> Finding:
-    base = dict(
-        rule="SECRET.API_KEY",
-        category=Category.SECRET.value,
-        severity=Severity.HIGH.value,
-        confidence=Confidence.HIGH.value,
-        file="src/config.js",
-        line=42,
-        message="Potential API credential detected.",
-        remediation="Move to env var.",
-        evidence="sk-test-****abcd",
-        related_articles=("5.1.f", "32"),
-    )
+    base = {
+        "rule": "SECRET.API_KEY",
+        "category": Category.SECRET.value,
+        "severity": Severity.HIGH.value,
+        "confidence": Confidence.HIGH.value,
+        "file": "src/config.js",
+        "line": 42,
+        "message": "Potential API credential detected.",
+        "remediation": "Move to env var.",
+        "evidence": "sk-test-****abcd",
+        "related_articles": ("5.1.f", "32"),
+    }
     base.update(kwargs)
     return Finding(**base)
 

@@ -1,9 +1,11 @@
-"""Console reporting for scan results. Never prints full secrets."""
+"""Console and machine-readable reports for scan results. Never prints full secrets."""
 
 from __future__ import annotations
 
-from typing import TextIO
+import json
+from typing import Any, TextIO
 
+from gdprlint import __version__
 from gdprlint.finding import CommitDecision, Decision, Finding
 
 DIVIDER = "────────────────────────────────────────"
@@ -11,6 +13,7 @@ DISCLAIMER = (
     "GDPRLint is a technical privacy and security guardrail. "
     "It does not certify legal or GDPR compliance."
 )
+JSON_SCHEMA = "gdprlint/report/v1"
 
 
 def _severity_rank(f: Finding) -> int:
@@ -35,10 +38,10 @@ def _print_finding(out: TextIO, f: Finding, *, show_gdpr: bool) -> None:
         print(f"  Match: {f.evidence}", file=out)
     print(file=out)
     print("  Recommendation:", file=out)
-    for line in f.remediation.split(". "):
-        line = line.strip().rstrip(".")
-        if line:
-            print(f"    {line}.", file=out)
+    for chunk in f.remediation.split(". "):
+        sentence = chunk.strip().rstrip(".")
+        if sentence:
+            print(f"    {sentence}.", file=out)
     if f.laya_remediation_family and f.laya_remediation_family != "none":
         print(f"    Family: {f.laya_remediation_family}", file=out)
     if show_gdpr and f.related_articles:
@@ -56,7 +59,8 @@ def render_blocked(decision: CommitDecision, out: TextIO) -> None:
     shown = [
         f
         for f in decision.findings
-        if f.laya_decision in (Decision.BLOCK.value, Decision.ESCALATE_REVIEW.value, Decision.WARN.value)
+        if f.laya_decision
+        in (Decision.BLOCK.value, Decision.ESCALATE_REVIEW.value, Decision.WARN.value)
     ]
     # Prefer block decisions first
     blocking = [f for f in decision.findings if f.laya_decision == Decision.BLOCK.value]
@@ -69,7 +73,10 @@ def render_blocked(decision: CommitDecision, out: TextIO) -> None:
         print(f"✗ {len(ordered)} issue(s) found", file=out)
     print(DIVIDER, file=out)
 
-    show_gdpr = "FLAG_PRIVACY_REVIEW" in decision.reasons or "FLAG_BREACH_CONTEXT" in decision.reasons
+    show_gdpr = (
+        "FLAG_PRIVACY_REVIEW" in decision.reasons
+        or "FLAG_BREACH_CONTEXT" in decision.reasons
+    )
     # Show all blocking + escalate findings; cap long lists
     display = ordered[:20]
     for f in display:
@@ -98,8 +105,148 @@ def render_blocked(decision: CommitDecision, out: TextIO) -> None:
     print(DISCLAIMER, file=out)
 
 
-def render(decision: CommitDecision, out: TextIO) -> None:
-    """Single entry used by CLI."""
+def render(decision: CommitDecision, out: TextIO, *, fmt: str = "text") -> None:
+    """Single entry used by CLI. ``fmt`` is ``text``, ``json`` or ``sarif``."""
+    if fmt == "json":
+        render_json(decision, out)
+        return
+    if fmt == "sarif":
+        render_sarif(decision, out)
+        return
+    render_text(decision, out)
+
+
+def _counts(findings: list[Finding]) -> dict[str, int]:
+    by_category = {"secret": 0, "pii": 0, "security": 0}
+    blocking = 0
+    suppressed = 0
+    for f in findings:
+        if f.category in by_category:
+            by_category[f.category] += 1
+        if f.laya_decision == Decision.BLOCK.value:
+            blocking += 1
+        elif f.laya_decision == Decision.SUPPRESS_FP.value:
+            suppressed += 1
+    return {
+        "total": len(findings),
+        "blocking": blocking,
+        "suppressed": suppressed,
+        **by_category,
+    }
+
+
+def report_dict(decision: CommitDecision) -> dict[str, Any]:
+    """Machine-readable report (JSON schema ``gdprlint/report/v1``)."""
+    return {
+        "schema": JSON_SCHEMA,
+        "tool": {"name": "gdprlint", "version": __version__},
+        "action": decision.action,
+        "blocked": decision.action == "block",
+        "exit_code": decision.exit_code,
+        "files_scanned": decision.files_scanned,
+        "laya_available": decision.laya_available,
+        "reasons": list(decision.reasons),
+        "privacy_notes": list(decision.privacy_notes),
+        "counts": _counts(list(decision.findings)),
+        "findings": [f.to_dict() for f in decision.findings],
+        "disclaimer": DISCLAIMER,
+    }
+
+
+def render_json(decision: CommitDecision, out: TextIO) -> None:
+    json.dump(report_dict(decision), out, indent=2, ensure_ascii=False)
+    out.write("\n")
+
+
+def _sarif_level(f: Finding) -> str | None:
+    """Map the per-finding pipeline decision to a SARIF level (None → omit)."""
+    if f.laya_decision == Decision.BLOCK.value:
+        return "error"
+    if f.laya_decision in (Decision.WARN.value, Decision.ESCALATE_REVIEW.value):
+        return "warning"
+    if f.laya_decision == Decision.SUPPRESS_FP.value:
+        return None
+    return "note"
+
+
+def _sarif_rules(findings: list[Finding]) -> list[dict[str, Any]]:
+    rules: dict[str, dict[str, Any]] = {}
+    for f in findings:
+        if f.rule in rules or _sarif_level(f) is None:
+            continue
+        rules[f.rule] = {
+            "id": f.rule,
+            "name": f.rule.replace(".", "_"),
+            "shortDescription": {"text": f.message},
+            "help": {"text": f.remediation},
+            "properties": {"category": f.category},
+        }
+    return list(rules.values())
+
+
+def sarif_dict(decision: CommitDecision) -> dict[str, Any]:
+    """SARIF 2.1.0 report (GitHub code-scanning compatible)."""
+    findings = list(decision.findings)
+    results: list[dict[str, Any]] = []
+    for f in findings:
+        level = _sarif_level(f)
+        if level is None:
+            continue
+        results.append(
+            {
+                "ruleId": f.rule,
+                "level": level,
+                "message": {"text": f.message},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": f.file},
+                            "region": {"startLine": max(f.line, 1)},
+                        }
+                    }
+                ],
+                "properties": {
+                    "category": f.category,
+                    "severity": f.severity,
+                    "confidence": f.confidence,
+                    "laya_decision": f.laya_decision,
+                    "related_articles": list(f.related_articles),
+                },
+            }
+        )
+    return {
+        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [
+            {
+                "tool": {
+                    "driver": {
+                        "name": "GDPRLint",
+                        "version": __version__,
+                        "informationUri": "https://github.com/pablorivast/GDPRLint",
+                        "rules": _sarif_rules(findings),
+                    }
+                },
+                "results": results,
+                "properties": {
+                    "action": decision.action,
+                    "exit_code": decision.exit_code,
+                    "files_scanned": decision.files_scanned,
+                    "laya_available": decision.laya_available,
+                    "reasons": list(decision.reasons),
+                    "disclaimer": DISCLAIMER,
+                },
+            }
+        ],
+    }
+
+
+def render_sarif(decision: CommitDecision, out: TextIO) -> None:
+    json.dump(sarif_dict(decision), out, indent=2, ensure_ascii=False)
+    out.write("\n")
+
+
+def render_text(decision: CommitDecision, out: TextIO) -> None:
     if decision.action == "block":
         render_blocked(decision, out)
         return

@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence, TextIO
+from typing import TextIO
 
 from gdprlint import __version__
 from gdprlint.config import ConfigError, load_config
@@ -39,9 +40,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="scan staged changes (git diff --cached) and block/warn on findings",
     )
     scan_p.add_argument(
+        "--format",
+        dest="fmt",
+        choices=("text", "json", "sarif"),
+        default="text",
+        help="report format (default: text)",
+    )
+    scan_p.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="write the report to PATH instead of stdout",
+    )
+    scan_p.add_argument(
         "--quiet",
         action="store_true",
-        help="suppress non-essential output",
+        help="suppress non-essential text output (ignored for json/sarif)",
     )
 
     install_p = sub.add_parser(
@@ -81,14 +96,26 @@ def cmd_scan(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
     except GitError as exc:
         print(f"gdprlint: git error: {exc}", file=err)
         return EXIT_ERROR
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 — CLI last-resort error handler
         print(f"gdprlint: unexpected error: {type(exc).__name__}: {exc}", file=err)
         return EXIT_ERROR
 
-    if getattr(args, "quiet", False) and decision.action != "block":
+    fmt = getattr(args, "fmt", "text")
+    output: Path | None = getattr(args, "output", None)
+    if output is not None:
+        try:
+            with output.open("w", encoding="utf-8") as fh:
+                render(decision, fh, fmt=fmt)
+        except OSError as exc:
+            print(f"gdprlint: cannot write report to {output}: {exc}", file=err)
+            return EXIT_ERROR
         return decision.exit_code
 
-    render(decision, out)
+    quiet = getattr(args, "quiet", False) and fmt == "text"
+    if quiet and decision.action != "block":
+        return decision.exit_code
+
+    render(decision, out, fmt=fmt)
     return decision.exit_code
 
 

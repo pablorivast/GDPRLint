@@ -109,6 +109,8 @@ gdprlint scan
 gdprlint scan --quiet                 # only print when the commit would block
 gdprlint scan --no-laya               # rules-only, skip the model gate
 gdprlint scan --config path/to.json   # explicit config file
+gdprlint scan --all                   # whole worktree: tracked + untracked (non-ignored)
+gdprlint scan --history main~3..main  # lines added across a git revision range
 ```
 
 Machine-readable reports (CI / code scanning):
@@ -130,6 +132,17 @@ Exit codes:
 | `2` | Usage / config / git error |
 
 `gdprlint uninstall` removes the managed hook block.
+
+Scan modes:
+
+| Mode | Input |
+|---|---|
+| *(default)* | added lines of `git diff --cached` |
+| `--all` | every tracked and untracked non-ignored file (binary and >1 MiB files are skipped) |
+| `--history RANGE` | added lines across a revision range, e.g. `main~3..main` |
+
+`--all` and `--history` are mutually exclusive; the selected mode is reported as
+`mode` in the JSON/SARIF report.
 
 ## How the Git hook works
 
@@ -173,7 +186,18 @@ built-in defaults):
     "flag_special_category": true,
     "flag_dpia_signal": true
   },
-  "gdpr_context": "informational"
+  "gdpr_context": "informational",
+  "custom_rules": [
+    {
+      "id": "CORP.INTERNAL_TOKEN",
+      "pattern": "tok_[A-Za-z0-9]{32}",
+      "category": "secret",
+      "action": "block",
+      "severity": "high",
+      "confidence": "high"
+    }
+  ],
+  "plugins": true
 }
 ```
 
@@ -189,6 +213,8 @@ built-in defaults):
 - **laya.preload:** `true` → load model weights eagerly at startup
 - **laya.show_gdpr_context / flag_special_category / flag_dpia_signal:** privacy-review signals
 - **gdpr_context:** `off` → hide article references  
+- **custom_rules:** project-specific regex rules (see below)  
+- **plugins:** `false` disables third-party scanners from entry points  
 
 See [`examples/.gdprlint.json`](examples/.gdprlint.json) for a full inventory
 of keys, and `gdprlint list-rules` for every rule id.
@@ -196,6 +222,55 @@ of keys, and `gdprlint list-rules` for every rule id.
 Built-in excludes (v0.1.1+): `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `poetry.lock`, `uv.lock`, `Cargo.lock`, `composer.lock`, `*.min.js`, `*.min.css`.
 
 Blocking credential rules (v0.2.0): `SECRET.CREDENTIALS_IN_URL`, `SECURITY.LOG_CREDENTIAL`, `SECURITY.LOCALSTORAGE_SECRET`.
+
+## Custom rules and plugins
+
+**Custom rules** — add project-specific detections in `.gdprlint.json` without
+touching Python:
+
+```json
+{
+  "custom_rules": [
+    {
+      "id": "CORP.INTERNAL_TOKEN",
+      "pattern": "tok_[A-Za-z0-9]{32}",
+      "flags": "i",
+      "category": "secret",
+      "action": "block",
+      "severity": "high",
+      "confidence": "high",
+      "message": "Corp internal token committed",
+      "remediation": "Rotate the token and read it from the environment.",
+      "articles": ["32"]
+    }
+  ]
+}
+```
+
+- `id` (required): uppercase `VENDOR.RULE_NAME`; the `SECRET.` / `PII.` /
+  `SECURITY.` namespaces are reserved for built-ins
+- `pattern` (required): Python regex; invalid patterns fail at load time with
+  exit code 2 · `flags` accepts `i`, `m`, `s`, `x`
+- Defaults: `category: secret`, `action: warn`, `severity: medium`,
+  `confidence: likely`
+- Action precedence: exact `rules` entry → built-in exact → longest `rules`
+  glob → the rule's own `action` → built-in globs → `warn`
+- Evidence is redacted like every other finding; custom ids appear in
+  `gdprlint list-rules`
+
+**Plugins** — packages can contribute scanners through the
+`gdprlint.scanners` entry-point group:
+
+```toml
+# pyproject.toml of the plugin package
+[project.entry-points."gdprlint.scanners"]
+my_scanner = "my_package.scanner:MyScanner"
+```
+
+`MyScanner` must subclass `gdprlint.scanners.Scanner` (or be a factory
+returning one). Findings flow through the same exclude/exception/gate
+pipeline; a broken plugin is reported on stderr and skipped, never fatal.
+Set `"plugins": false` to disable loading.
 
 ## Architecture (prepared for growth)
 
@@ -205,7 +280,8 @@ Detector → Finding → LayaAnalyzer (optional gate) → DecisionEngine → ALL
                          └── future: richer risk assessment / explanations
 ```
 
-- `scanners/` — `SecretScanner`, `PIIScanner`, `SecurityScanner` share one `Finding` schema  
+- `scanners/` — `SecretScanner`, `PIIScanner`, `SecurityScanner`, `CustomRuleScanner` share one `Finding` schema; third-party scanners load via entry points  
+- `rules.py` — central rule catalog (kept in sync with scanners by tests)  
 - `analyzer.py` — `LayaAnalyzer` (Router, batched typed questions) or `RulesOnlyAnalyzer`  
 - `engine.py` — orchestration + technical decisions (not legal ones)  
 - MVP works even if Laya weights cannot load (fail-safe fallback)
@@ -224,6 +300,12 @@ GDPRLint maps some patterns to **contextual** article tags (e.g. Art. 5(1)(f), 3
 **GDPRLint is a technical privacy and security guardrail. It does not certify legal or GDPR compliance.**
 
 ## Adding a rule
+
+No code needed for a line-based regex: use `custom_rules` (see
+*Custom rules and plugins*) — it is validated, redacted and listed by
+`gdprlint list-rules` like a built-in.
+
+For a built-in rule:
 
 1. Add a pattern + `rule` id in `src/gdprlint/scanners/*.py`  
 2. Register the id in the catalog `src/gdprlint/rules.py` (kept in sync by tests)  
@@ -254,7 +336,7 @@ and how to add a rule. Notable changes are tracked in
 - Pattern-based, line-oriented — **not** a full SAST or data-flow analyzer  
 - Special-category and phone/DNI heuristics can false-positive; confidence tiers + exceptions mitigate  
 - Laya base checkpoints are not magic: gated by `min_confidence`; uncertain findings become **review flags**, not silent passes  
-- Binary staged files are not content-scanned  
+- Binary staged files are not content-scanned; `--all` also skips binaries and files over 1 MiB  
 - No name detection (deliberate)  
 - **Does not** implement multi-jurisdiction privacy law automatically  
 

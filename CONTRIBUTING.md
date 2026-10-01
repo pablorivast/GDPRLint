@@ -43,6 +43,12 @@ A `!` after the type (`refactor!:`) marks a breaking change.
 
 ## Adding a rule
 
+Project-specific patterns don't need code: `custom_rules` in
+`.gdprlint.json` and the `gdprlint.scanners` entry-point group cover both
+(no built-in contribution required).
+
+For a built-in rule:
+
 1. Add the pattern and a stable rule id in `src/gdprlint/scanners/`
    (`secrets.py`, `pii.py` or `security.py`). Id shape: `SECRET.*`,
    `PII.*`, `SECURITY.*`.

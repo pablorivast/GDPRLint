@@ -34,5 +34,20 @@
     "flag_special_category": true,
     "flag_dpia_signal": true
   },
-  "gdpr_context": "informational"
+  "gdpr_context": "informational",
+  "custom_rules": [
+    {
+      "id": "CORP.INTERNAL_TOKEN",
+      "pattern": "tok_[A-Za-z0-9]{32}",
+      "flags": "i",
+      "category": "secret",
+      "action": "block",
+      "severity": "high",
+      "confidence": "high",
+      "message": "Corp internal token committed",
+      "remediation": "Rotate the token and read it from the environment.",
+      "articles": ["32"]
+    }
+  ],
+  "plugins": true
 }

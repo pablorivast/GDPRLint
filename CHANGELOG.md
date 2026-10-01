@@ -10,6 +10,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Custom rules: `custom_rules` in `.gdprlint.json` defines project-specific
+  regex detections (`id`, `pattern`, optional `flags`/`category`/`action`/
+  `severity`/`confidence`/`message`/`remediation`/`articles`). Invalid
+  patterns fail at load time (exit 2); evidence is redacted like built-ins;
+  `gdprlint list-rules` shows them (text and `custom_rules` in JSON).
+- Pluggable scanners: packages contribute via the `gdprlint.scanners`
+  entry-point group; broken plugins are reported on stderr and skipped;
+  `"plugins": false` disables loading.
+- `gdprlint scan --all` — scan every tracked and untracked non-ignored file
+  (binary and >1 MiB files are skipped).
+- `gdprlint scan --history RANGE` — scan lines added across a git revision
+  range (e.g. `main~3..main`); option-like ranges are rejected.
+- Reports expose the scan input as `mode` (`staged` | `all` | `history`) in
+  JSON and SARIF output.
 - `gdprlint init` — write a starter `.gdprlint.json` mirroring the built-in
   defaults (`--force` to overwrite).
 - `gdprlint list-rules [--format json]` — catalog of all 64 built-in rules

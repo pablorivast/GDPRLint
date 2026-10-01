@@ -93,7 +93,9 @@ gdprlint --version
 
 ```bash
 # In your project repository
-gdprlint install    # writes .git/hooks/pre-commit (idempotent)
+gdprlint init         # optional: write a starter .gdprlint.json
+gdprlint list-rules   # inspect the 64 built-in rules and their actions
+gdprlint install      # writes .git/hooks/pre-commit (idempotent)
 
 git add .
 git commit -m "my change"
@@ -104,6 +106,9 @@ Manual scan:
 
 ```bash
 gdprlint scan
+gdprlint scan --quiet                 # only print when the commit would block
+gdprlint scan --no-laya               # rules-only, skip the model gate
+gdprlint scan --config path/to.json   # explicit config file
 ```
 
 Machine-readable reports (CI / code scanning):
@@ -112,6 +117,7 @@ Machine-readable reports (CI / code scanning):
 gdprlint scan --format json            # stable JSON schema (gdprlint/report/v1)
 gdprlint scan --format sarif           # SARIF 2.1.0 (GitHub code scanning)
 gdprlint scan --format json --output gdprlint-report.json
+gdprlint list-rules --format json      # rule catalog (schema gdprlint/rules/v1)
 gdprlint install --force               # refresh an outdated managed hook block
 ```
 
@@ -138,6 +144,9 @@ Directories like `node_modules/` are only touched if you **explicitly staged** f
 
 ## Configuration — `.gdprlint.json`
 
+Create one with `gdprlint init` (writes a starter file that mirrors the
+built-in defaults):
+
 ```json
 {
   "mode": "block",
@@ -156,26 +165,37 @@ Directories like `node_modules/` are only touched if you **explicitly staged** f
   ],
   "laya": {
     "enabled": true,
+    "device": "cpu",
     "min_confidence": 0.7,
     "suppress_fp_below": 0.85,
-    "show_gdpr_context": true
+    "preload": false,
+    "show_gdpr_context": true,
+    "flag_special_category": true,
+    "flag_dpia_signal": true
   },
   "gdpr_context": "informational"
 }
 ```
 
-- **rules:** glob → `block` | `warn` | `off`  
+- **mode:** `block` (enforce) | `off` (report only, never block) — per-rule tuning is done via `rules`
+- **min_block_confidence:** minimum tier (`possible` · `likely` · `high`) to block
+- **rules:** glob → `block` | `warn` | `off` (exact ids win over globs; longest glob wins)
 - **exceptions:** drop a specific finding (`rule` + `file` [+ optional `line`])  
 - **exclude:** path globs (added to built-in defaults)  
 - **exclude_defaults:** `false` disables built-in lockfile/min.js excludes  
-- **laya.enabled:** `false` → rules-only (no model)  
+- **laya.enabled:** `false` → rules-only (no model); same effect as `scan --no-laya`
+- **laya.device:** `cpu` (default) | `cuda`
+- **laya.min_confidence / suppress_fp_below:** gate thresholds (0–1)
+- **laya.preload:** `true` → load model weights eagerly at startup
+- **laya.show_gdpr_context / flag_special_category / flag_dpia_signal:** privacy-review signals
 - **gdpr_context:** `off` → hide article references  
+
+See [`examples/.gdprlint.json`](examples/.gdprlint.json) for a full inventory
+of keys, and `gdprlint list-rules` for every rule id.
 
 Built-in excludes (v0.1.1+): `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `poetry.lock`, `uv.lock`, `Cargo.lock`, `composer.lock`, `*.min.js`, `*.min.css`.
 
 Blocking credential rules (v0.2.0): `SECRET.CREDENTIALS_IN_URL`, `SECURITY.LOG_CREDENTIAL`, `SECURITY.LOCALSTORAGE_SECRET`.
-
-See [`examples/.gdprlint.json`](examples/.gdprlint.json).
 
 ## Architecture (prepared for growth)
 
@@ -206,9 +226,10 @@ GDPRLint maps some patterns to **contextual** article tags (e.g. Art. 5(1)(f), 3
 ## Adding a rule
 
 1. Add a pattern + `rule` id in `src/gdprlint/scanners/*.py`  
-2. Attach `related_articles` only as contextual tags  
-3. Add positive **and** false-positive tests under `tests/`  
-4. Keep evidence **redacted** via `gdprlint.redact`  
+2. Register the id in the catalog `src/gdprlint/rules.py` (kept in sync by tests)  
+3. Attach `related_articles` only as contextual tags  
+4. Add positive **and** false-positive tests under `tests/`  
+5. Keep evidence **redacted** via `gdprlint.redact`  
 
 Rule ID shape: `SECRET.*` · `PII.*` · `SECURITY.*`.
 

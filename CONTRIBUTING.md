@@ -46,10 +46,12 @@ A `!` after the type (`refactor!:`) marks a breaking change.
 1. Add the pattern and a stable rule id in `src/gdprlint/scanners/`
    (`secrets.py`, `pii.py` or `security.py`). Id shape: `SECRET.*`,
    `PII.*`, `SECURITY.*`.
-2. Attach `related_articles` only as **contextual** tags — never as legal
+2. Register the id in `src/gdprlint/rules.py` — `tests/test_rules.py` fails
+   if the catalog and the scanners disagree.
+3. Attach `related_articles` only as **contextual** tags — never as legal
    claims.
-3. Add **positive and false-positive** tests under `tests/`.
-4. Keep evidence **redacted** via `gdprlint.redact` — full secrets must never
+4. Add **positive and false-positive** tests under `tests/`.
+5. Keep evidence **redacted** via `gdprlint.redact` — full secrets must never
    reach output, reports or logs.
 
 ## Reporting a false positive

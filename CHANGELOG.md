@@ -10,6 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `gdprlint init` — write a starter `.gdprlint.json` mirroring the built-in
+  defaults (`--force` to overwrite).
+- `gdprlint list-rules [--format json]` — catalog of all 64 built-in rules
+  with their effective action (schema `gdprlint/rules/v1`), backed by a new
+  central registry in `gdprlint.rules` with a scanner-sync test.
+- `gdprlint scan --config PATH` — explicit config file instead of
+  `./.gdprlint.json`.
+- `gdprlint scan --no-laya` — force rules-only mode for a single run.
 - `gdprlint scan --format text|json|sarif` — machine-readable reports:
   - **json**: stable schema `gdprlint/report/v1` with decision, counts, reasons
     and redacted findings (built on `Finding.to_dict()`).
@@ -32,6 +40,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pytest now enforces coverage reporting (`--cov` + `--cov-fail-under=78`).
 - The hook e2e test disables the Laya gate via test config, so the suite is
   deterministic and needs no model downloads.
+- `config.py` refactored: `load_config_file()` (explicit paths) and
+  `write_config()` extracted from `load_config()`.
+- README documents previously undocumented options
+  (`laya.device`, `laya.preload`, `laya.flag_special_category`,
+  `laya.flag_dpia_signal`, `scan --quiet`).
 
 ### Fixed
 

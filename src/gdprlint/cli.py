@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -20,6 +21,7 @@ from gdprlint.engine import scan
 from gdprlint.git_ops import GitError
 from gdprlint.hook import HookError, install_hook, is_installed
 from gdprlint.reporting import DIVIDER, render
+from gdprlint.rules import CATEGORY_TITLES, RULE_IDS, rules_dict
 
 EXIT_OK = 0
 EXIT_BLOCK = 1
@@ -85,6 +87,18 @@ def build_parser() -> argparse.ArgumentParser:
         "--force",
         action="store_true",
         help="overwrite an existing .gdprlint.json",
+    )
+
+    rules_p = sub.add_parser(
+        "list-rules",
+        help="list built-in rules with their effective action",
+    )
+    rules_p.add_argument(
+        "--format",
+        dest="fmt",
+        choices=("text", "json"),
+        default="text",
+        help="output format (default: text)",
     )
 
     install_p = sub.add_parser(
@@ -174,6 +188,35 @@ def cmd_init(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
     return EXIT_OK
 
 
+def cmd_list_rules(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
+    try:
+        cfg = load_config(Path.cwd())
+    except ConfigError as exc:
+        print(f"gdprlint: config error: {exc}", file=err)
+        return EXIT_ERROR
+
+    fmt = getattr(args, "fmt", "text")
+    if fmt == "json":
+        json.dump(rules_dict(cfg), out, indent=2, ensure_ascii=False)
+        out.write("\n")
+        return EXIT_OK
+
+    total = sum(len(ids) for ids in RULE_IDS.values())
+    print(f"GDPRLint rules — {total} built-in rules", file=out)
+    print(DIVIDER, file=out)
+    source = cfg.path if cfg.path else "built-in defaults (no .gdprlint.json found)"
+    print(f"Actions as resolved by: {source}", file=out)
+    for category in ("secret", "pii", "security"):
+        ids = RULE_IDS[category]
+        print(file=out)
+        print(f"{CATEGORY_TITLES[category]} ({len(ids)})", file=out)
+        for rule in ids:
+            print(f"  {cfg.action_for_rule(rule):5}  {rule}", file=out)
+    print(file=out)
+    print("block = stops the commit · warn = reports only · off = ignored", file=out)
+    return EXIT_OK
+
+
 def cmd_install(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
     already = is_installed(Path.cwd())
     force = bool(getattr(args, "force", False))
@@ -231,6 +274,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return cmd_scan(args, out, err)
     if args.command == "init":
         return cmd_init(args, out, err)
+    if args.command == "list-rules":
+        return cmd_list_rules(args, out, err)
     if args.command == "install":
         return cmd_install(args, out, err)
     if args.command == "uninstall":

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gdprlint"
-version = "0.2.0"
+dynamic = ["version"]
 description = "Technical privacy and security guardrail for coding agents via Git pre-commit hooks"
 readme = "README.md"
 license = { text = "Apache-2.0" }
@@ -40,6 +40,9 @@ gdprlint = "gdprlint.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.dynamic]
+version = { attr = "gdprlint.__version__" }
 
 [tool.setuptools.package-data]
 gdprlint = ["py.typed"]

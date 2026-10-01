@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
+
+import gdprlint
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -18,3 +21,17 @@ def test_pre_commit_hook_manifest():
     assert "language: python" in text
     assert "pass_filenames: false" in text
     assert "stages: [pre-commit]" in text
+
+
+def test_version_is_single_sourced():
+    """pyproject must read the version from gdprlint.__version__."""
+    text = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert 'dynamic = ["version"]' in text
+    assert 'version = { attr = "gdprlint.__version__" }' in text
+    assert re.fullmatch(r"\d+\.\d+\.\d+", gdprlint.__version__), gdprlint.__version__
+
+
+def test_py_typed_ships_with_the_package():
+    assert (Path(gdprlint.__file__).with_name("py.typed")).is_file()
+    text = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert 'gdprlint = ["py.typed"]' in text

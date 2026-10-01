@@ -1,0 +1,18 @@
+# Hook manifest for the pre-commit framework (https://pre-commit.com).
+# Usage in a consumer repository:
+#
+#   repos:
+#     - repo: https://github.com/pablorivast/GDPRLint
+#       rev: v0.3.0
+#       hooks:
+#         - id: gdprlint
+#
+- id: gdprlint
+  name: GDPRLint
+  description: >-
+    Technical privacy and security guardrail — block secrets, PII and
+    dangerous patterns in staged changes before they enter history.
+  entry: gdprlint scan
+  language: python
+  pass_filenames: false
+  stages: [pre-commit]

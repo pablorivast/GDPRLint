@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import io
 import os
 import subprocess
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import pytest
@@ -49,6 +51,21 @@ def stage_file(repo: Path, relative: str, content: str) -> Path:
     path.write_text(content, encoding="utf-8")
     _git(repo, "add", relative)
     return path
+
+
+def run_cli(args: list[str], cwd: Path) -> tuple[int, str, str]:
+    """Run gdprlint.cli.main in ``cwd``; return (exit_code, stdout, stderr)."""
+    from gdprlint.cli import main
+
+    out, err = io.StringIO(), io.StringIO()
+    old = Path.cwd()
+    os.chdir(cwd)
+    try:
+        with redirect_stdout(out), redirect_stderr(err):
+            code = main(args)
+    finally:
+        os.chdir(old)
+    return code, out.getvalue(), err.getvalue()
 
 
 def stage_modified(repo: Path, relative: str, content: str) -> Path:

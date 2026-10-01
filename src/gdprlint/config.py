@@ -4,15 +4,30 @@ from __future__ import annotations
 
 import fnmatch
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, ClassVar
+
+from gdprlint.rules import all_rule_ids
 
 CONFIG_FILENAME = ".gdprlint.json"
 
 VALID_ACTIONS = frozenset({"block", "warn", "off"})
 VALID_MODES = frozenset({"block", "off"})
 VALID_CONFIDENCE = frozenset({"possible", "likely", "high"})
+VALID_CATEGORIES = frozenset({"secret", "pii", "security"})
+VALID_SEVERITIES = frozenset({"low", "medium", "high", "critical"})
+
+# Subset of inline regex flags accepted in custom_rules entries.
+_CUSTOM_FLAG_MAP: dict[str, Any] = {
+    "i": re.IGNORECASE,
+    "m": re.MULTILINE,
+    "s": re.DOTALL,
+    "x": re.VERBOSE,
+}
+_CUSTOM_ID_RE = re.compile(r"^[A-Z][A-Z0-9_]*\.[A-Z0-9_]+$")
+_RESERVED_PREFIXES = ("SECRET.", "PII.", "SECURITY.")
 
 # Lockfiles / generated bundles — high FP surface, low value for PII/secret scan.
 DEFAULT_EXCLUDE: list[str] = [
@@ -59,6 +74,21 @@ class ExceptionRule:
 
 
 @dataclass
+class CustomRule:
+    """User-defined regex rule declared in ``custom_rules``."""
+
+    id: str
+    pattern: re.Pattern[str]
+    category: str = "secret"
+    action: str = "warn"
+    severity: str = "medium"
+    confidence: str = "likely"
+    message: str = ""
+    remediation: str = ""
+    articles: tuple[str, ...] = ()
+
+
+@dataclass
 class Config:
     mode: str = "block"
     min_block_confidence: str = "high"
@@ -68,6 +98,7 @@ class Config:
     exceptions: list[ExceptionRule] = field(default_factory=list)
     laya: LayaConfig = field(default_factory=LayaConfig)
     gdpr_context: str = "informational"
+    custom_rules: list[CustomRule] = field(default_factory=list)
     path: Path | None = None
 
     # Defaults when no config file / no matching rule.
@@ -102,6 +133,11 @@ class Config:
                 best_action = action
         if best_pattern:
             return best_action
+        # Custom rules default action — after user globs so a broad
+        # "CORP.*": "off" entry still overrides the rule's own action.
+        for custom in self.custom_rules:
+            if custom.id == rule:
+                return custom.action
         # Built-in defaults
         for pattern, action in self.DEFAULT_RULE_ACTIONS.items():
             if fnmatch.fnmatch(rule, pattern):
@@ -196,6 +232,106 @@ def _parse_laya(raw: Any) -> LayaConfig:
     return cfg
 
 
+def _parse_custom_rules(raw: Any) -> list[CustomRule]:
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ConfigError("'custom_rules' must be a list")
+    builtin_ids = set(all_rule_ids())
+    out: list[CustomRule] = []
+    seen: set[str] = set()
+    for i, item in enumerate(raw):
+        prefix = f"custom_rules[{i}]"
+        if not isinstance(item, dict):
+            raise ConfigError(f"{prefix} must be an object")
+
+        rid = item.get("id")
+        if not isinstance(rid, str) or not rid:
+            raise ConfigError(f"{prefix} requires an 'id' string")
+        if not _CUSTOM_ID_RE.match(rid):
+            raise ConfigError(
+                f"{prefix}.id must look like 'VENDOR.RULE_NAME' (uppercase): {rid!r}"
+            )
+        if rid.startswith(_RESERVED_PREFIXES) or rid in builtin_ids:
+            raise ConfigError(
+                f"{prefix}.id {rid!r} collides with a built-in rule id or namespace"
+            )
+        if rid in seen:
+            raise ConfigError(f"{prefix}.id {rid!r} is duplicated")
+        seen.add(rid)
+
+        pattern = item.get("pattern")
+        if not isinstance(pattern, str) or not pattern:
+            raise ConfigError(f"{prefix} requires a 'pattern' string")
+        flags_raw = item.get("flags", "")
+        if not isinstance(flags_raw, str) or any(c not in _CUSTOM_FLAG_MAP for c in flags_raw):
+            raise ConfigError(
+                f"{prefix}.flags must be a combination of {sorted(_CUSTOM_FLAG_MAP)}"
+            )
+        flags = 0
+        for c in flags_raw:
+            flags |= _CUSTOM_FLAG_MAP[c]
+        try:
+            compiled = re.compile(pattern, flags)
+        except re.error as exc:
+            raise ConfigError(f"{prefix}.pattern is not a valid regex: {exc}") from exc
+
+        category = item.get("category", "secret")
+        if category not in VALID_CATEGORIES:
+            raise ConfigError(
+                f"{prefix}.category must be one of {sorted(VALID_CATEGORIES)}, "
+                f"got {category!r}"
+            )
+        action = item.get("action", "warn")
+        if action not in VALID_ACTIONS:
+            raise ConfigError(
+                f"{prefix}.action must be one of {sorted(VALID_ACTIONS)}, got {action!r}"
+            )
+        severity = item.get("severity", "medium")
+        if severity not in VALID_SEVERITIES:
+            raise ConfigError(
+                f"{prefix}.severity must be one of {sorted(VALID_SEVERITIES)}, "
+                f"got {severity!r}"
+            )
+        confidence = item.get("confidence", "likely")
+        if confidence not in VALID_CONFIDENCE:
+            raise ConfigError(
+                f"{prefix}.confidence must be one of {sorted(VALID_CONFIDENCE)}, "
+                f"got {confidence!r}"
+            )
+
+        articles_raw = item.get("articles", [])
+        if not isinstance(articles_raw, list) or not all(
+            isinstance(a, (str, int)) for a in articles_raw
+        ):
+            raise ConfigError(f"{prefix}.articles must be a list of strings")
+        articles = tuple(str(a) for a in articles_raw)
+
+        message = item.get("message")
+        remediation = item.get("remediation")
+        out.append(
+            CustomRule(
+                id=rid,
+                pattern=compiled,
+                category=str(category),
+                action=str(action),
+                severity=str(severity),
+                confidence=str(confidence),
+                message=str(message) if message else f"Custom rule {rid} matched.",
+                remediation=(
+                    str(remediation)
+                    if remediation
+                    else (
+                        "Review this match and remove it or add an exception "
+                        "in .gdprlint.json."
+                    )
+                ),
+                articles=articles,
+            )
+        )
+    return out
+
+
 def load_config_file(path: Path) -> Config:
     """Load and validate an explicit ``.gdprlint.json`` file."""
     if not path.is_file():
@@ -255,6 +391,8 @@ def load_config_file(path: Path) -> Config:
         raise ConfigError("gdpr_context must be 'informational' or 'off'")
     cfg.gdpr_context = gdpr
 
+    cfg.custom_rules = _parse_custom_rules(raw.get("custom_rules"))
+
     return cfg
 
 
@@ -285,6 +423,7 @@ INIT_TEMPLATE: dict[str, Any] = {
         "enabled": True,
     },
     "gdpr_context": "informational",
+    "custom_rules": [],
 }
 
 

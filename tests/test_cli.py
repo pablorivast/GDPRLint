@@ -1,26 +1,12 @@
 """CLI end-to-end tests (install + scan on a temporary repo)."""
 
-import io
 import json
 import os
 import subprocess
-from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from gdprlint.cli import main
-from tests.conftest import stage_file
-
-
-def run_cli(args: list[str], cwd: Path) -> tuple[int, str, str]:
-    out, err = io.StringIO(), io.StringIO()
-    old = Path.cwd()
-    os.chdir(cwd)
-    try:
-        with redirect_stdout(out), redirect_stderr(err):
-            code = main(args)
-    finally:
-        os.chdir(old)
-    return code, out.getvalue(), err.getvalue()
+from tests.conftest import run_cli, stage_file
 
 
 def test_version_flag(capsys):

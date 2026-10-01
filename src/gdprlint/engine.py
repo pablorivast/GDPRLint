@@ -32,9 +32,10 @@ def run_scanners(
     *,
     findings: list[Finding] | None = None,
 ) -> tuple[list[Finding], int]:
-    """Scan staged added lines; return (findings, files_scanned)."""
+    """Scan added lines; return (findings, files_scanned)."""
     scanners = default_scanners(
         flag_special_category=config.laya.flag_special_category,
+        custom_rules=config.custom_rules,
     )
     items = [(ln.path, ln.line_no, ln.text) for ln in diff.added_lines]
     raw: list[Finding] = []

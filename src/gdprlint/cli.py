@@ -212,6 +212,11 @@ def cmd_list_rules(args: argparse.Namespace, out: TextIO, err: TextIO) -> int:
         print(f"{CATEGORY_TITLES[category]} ({len(ids)})", file=out)
         for rule in ids:
             print(f"  {cfg.action_for_rule(rule):5}  {rule}", file=out)
+    if cfg.custom_rules:
+        print(file=out)
+        print(f"Custom rules ({len(cfg.custom_rules)})", file=out)
+        for custom in cfg.custom_rules:
+            print(f"  {cfg.action_for_rule(custom.id):5}  {custom.id}", file=out)
     print(file=out)
     print("block = stops the commit · warn = reports only · off = ignored", file=out)
     return EXIT_OK

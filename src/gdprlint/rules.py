@@ -108,4 +108,8 @@ def rules_dict(config: Config) -> dict[str, Any]:
             for category in ("secret", "pii", "security")
             for rule in RULE_IDS[category]
         ],
+        "custom_rules": [
+            {"id": c.id, "category": c.category, "action": config.action_for_rule(c.id)}
+            for c in config.custom_rules
+        ],
     }

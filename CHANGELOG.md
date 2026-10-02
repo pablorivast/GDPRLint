@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-02
+
 ### Changed
 
 - `gdprlint scan --all` no longer requires a git repository: it walks the

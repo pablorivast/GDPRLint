@@ -3,7 +3,7 @@
 #
 #   repos:
 #     - repo: https://github.com/pablorivast/GDPRLint
-#       rev: v0.3.0
+#       rev: v0.3.1
 #       hooks:
 #         - id: gdprlint
 #
